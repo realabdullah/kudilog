@@ -96,6 +96,27 @@ The output goes to `dist/`. It includes:
 npm run preview
 ```
 
+### Recurring Automation Safeguard
+
+Recurring auto-generation can be toggled at runtime with an environment variable.
+
+Set this in your `.env` or deployment environment:
+
+```bash
+VITE_RECURRING_AUTOMATION=false
+```
+
+Behavior:
+- `true` (default): recurring templates auto-generate due entries on app startup.
+- `false`: startup auto-generation is disabled, while existing data remains intact.
+
+Rollback strategy:
+1. Set `VITE_RECURRING_AUTOMATION=false`.
+2. Redeploy or restart the app.
+3. Verify manual expense flows, import/export, and analytics remain unaffected.
+
+This provides a low-risk rollout switch without schema rollback.
+
 ---
 
 ## Usage

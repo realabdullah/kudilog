@@ -2,10 +2,12 @@ import Dexie from "dexie";
 
 // ─── Schema Version History ───────────────────────────────────────────────────
 // v1: initial schema – expenses + settings tables
+// v2: recurring templates table + recurringId expense index
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 export const db = new Dexie("kudilog");
+const typedDb = /** @type {any} */ (db);
 
 db.version(1).stores({
   // Primary key: id (uuid string)
@@ -14,6 +16,13 @@ db.version(1).stores({
 
   // Key-value store for app settings (id = setting key)
   settings: "id",
+});
+
+db.version(2).stores({
+  expenses: "id, month, category, createdAt, updatedAt, recurringId",
+  settings: "id",
+  recurring:
+    "id, enabled, frequency, startMonth, lastGeneratedMonth, createdAt, updatedAt",
 });
 
 // ─── Typed helpers ─────────────────────────────────────────────────────────────
@@ -28,6 +37,21 @@ db.version(1).stores({
  * @property {string}  month       - "YYYY-MM" – auto-assigned at creation
  * @property {string}  createdAt   - ISO 8601
  * @property {string}  updatedAt   - ISO 8601
+ * @property {string=} recurringId - Source recurring template ID, if generated automatically
+ */
+
+/**
+ * @typedef {Object} RecurringTemplate
+ * @property {string}  id
+ * @property {string}  name
+ * @property {number}  amount
+ * @property {string}  category
+ * @property {"monthly"} frequency
+ * @property {string}  startMonth
+ * @property {boolean} enabled
+ * @property {string|null} lastGeneratedMonth
+ * @property {string}  createdAt
+ * @property {string}  updatedAt
  */
 
 /**
@@ -42,15 +66,16 @@ db.version(1).stores({
 export async function seedDefaultSettings() {
   const defaults = [
     { id: "currency", value: "NGN" },
-    { id: "monthlyBudget", value: null },   // null = no limit set
+    { id: "monthlyBudget", value: null }, // null = no limit set
+    { id: "categoryBudgets", value: {} }, // { [categoryId]: number }
     { id: "theme", value: "dark" },
   ];
 
-  await db.transaction("rw", db.settings, async () => {
+  await typedDb.transaction("rw", typedDb.settings, async () => {
     for (const def of defaults) {
-      const existing = await db.settings.get(def.id);
+      const existing = await typedDb.settings.get(def.id);
       if (!existing) {
-        await db.settings.put(def);
+        await typedDb.settings.put(def);
       }
     }
   });

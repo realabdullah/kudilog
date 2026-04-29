@@ -56,6 +56,17 @@ body {
     display: none;
 }
 
+/* ─── iOS input zoom prevention ──────────────────────────────────────────── */
+/* iOS Safari zooms the page when a focused input has font-size < 16px.
+   Override only for iOS (webkit-touch-callout is exclusive to Safari/iOS). */
+@supports (-webkit-touch-callout: none) {
+    input,
+    select,
+    textarea {
+        font-size: 16px !important;
+    }
+}
+
 /* ─── Focus styles ────────────────────────────────────────────────────────── */
 
 /* Strip the browser-native outline from every element so there is no

@@ -115,7 +115,7 @@ function MonthSwitcher({ month, onChange }) {
         aria-label="Previous month"
         className="
           w-7 h-7 flex items-center justify-center rounded-lg
-          text-[#444] hover:text-[#888] hover:bg-[#1a1a1a]
+          text-[#6a6a6a] hover:text-[#888] hover:bg-[#1a1a1a]
           transition-colors duration-150
         "
       >
@@ -139,7 +139,7 @@ function MonthSwitcher({ month, onChange }) {
           px-2 py-1 rounded-lg text-[12px] font-medium transition-colors duration-150 tabular-nums
           ${
             isCurrent
-              ? "text-[#555] cursor-default"
+              ? "text-[#7a7a7a] cursor-default"
               : "text-[#6bbf4e] hover:text-[#7fd460] hover:bg-[#6bbf4e]/10"
           }
         `}
@@ -155,9 +155,9 @@ function MonthSwitcher({ month, onChange }) {
         aria-label="Next month"
         className="
           w-7 h-7 flex items-center justify-center rounded-lg
-          text-[#444] hover:text-[#888] hover:bg-[#1a1a1a]
+          text-[#6a6a6a] hover:text-[#888] hover:bg-[#1a1a1a]
           transition-colors duration-150
-          disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-[#444]
+          disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-[#6a6a6a]
         "
       >
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -201,14 +201,14 @@ function BottomNav({ activeTab, onTabChange }) {
               pt-3 pb-3
               transition-colors duration-150
               outline-none focus-visible:bg-[#141414]
-              ${isActive ? "text-white" : "text-[#3a3a3a] hover:text-[#666]"}
+              ${isActive ? "text-white" : "text-[#666] hover:text-[#666]"}
             `}
           >
             {item.icon(isActive)}
             <span
               className={`
                 text-[10px] font-medium leading-none
-                ${isActive ? "text-white" : "text-[#3a3a3a]"}
+                ${isActive ? "text-white" : "text-[#666]"}
               `}
             >
               {item.label}
@@ -260,7 +260,7 @@ function AppHeader({ activeTab, month, onMonthChange }) {
 
       {/* Settings tab: show title */}
       {activeTab === "settings" && (
-        <span className="text-[13px] font-medium text-[#444]">Settings</span>
+        <span className="text-[13px] font-medium text-[#6a6a6a]">Settings</span>
       )}
     </header>
   );

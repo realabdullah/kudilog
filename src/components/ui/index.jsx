@@ -120,7 +120,7 @@ export function Modal({ open, onClose, title, children, size = "md" }) {
 export function Badge({ children, variant = "default", size = "sm" }) {
   const variantClasses = {
     default: "bg-[#1f1f1f] text-[#a0a0a0] border border-[#2a2a2a]",
-    muted: "bg-transparent text-[#555] border border-[#222]",
+    muted: "bg-transparent text-[#7a7a7a] border border-[#222]",
     accent: "bg-[#6bbf4e]/10 text-[#6bbf4e] border border-[#6bbf4e]/20",
     success: "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20",
     warning: "bg-amber-500/10 text-amber-400 border border-amber-500/20",
@@ -152,9 +152,9 @@ export function EmptyState({ icon, title, description, action }) {
   return (
     <div className="flex flex-col items-center justify-center py-16 px-6 text-center select-none">
       {icon && <div className="text-4xl mb-4 opacity-40">{icon}</div>}
-      <p className="text-[14px] font-medium text-[#555] mb-1">{title}</p>
+      <p className="text-[14px] font-medium text-[#7a7a7a] mb-1">{title}</p>
       {description && (
-        <p className="text-[12px] text-[#3a3a3a] max-w-xs leading-relaxed">
+        <p className="text-[12px] text-[#666] max-w-xs leading-relaxed">
           {description}
         </p>
       )}

@@ -18,6 +18,7 @@ import {
   useAllSettings,
   useMonthExpenses,
   useMonthStats,
+  useRecurringTemplates,
 } from "./hooks/useExpenses"
 import {
   currentMonth,
@@ -25,9 +26,32 @@ import {
   formatMonthLabel,
   isCurrentMonth,
 } from "./utils/formatters"
+import { syncRecurringExpensesToMonth } from "./utils/recurring"
+
+const recurringAutomationEnabled =
+  (/** @type {any} */ (import.meta)).env?.VITE_RECURRING_AUTOMATION !==
+  "false";
+
+/**
+ * @typedef {{
+ *   total: number,
+ *   count: number,
+ *   highest: { amount: number, name: string } | null,
+ * }} MonthStatsSummary
+ */
+
+/**
+ * @typedef {{
+ *   currency?: string,
+ *   monthlyBudget?: number | null,
+ *   categoryBudgets?: Record<string, number>,
+ *   theme?: string,
+ * }} AppSettings
+ */
 
 // ─── Hero total for the dashboard ─────────────────────────────────────────────
 
+/** @param {{ month: string, stats: MonthStatsSummary | undefined, currency: string, monthlyBudget: number | null }} props */
 function MonthlyHero({ month, stats, currency, monthlyBudget }) {
   const isThisMonth = isCurrentMonth(month);
 
@@ -50,7 +74,7 @@ function MonthlyHero({ month, stats, currency, monthlyBudget }) {
     <div className="pt-2 pb-6">
       {/* Month label */}
       <div className="flex items-center gap-2 mb-3">
-        <span className="text-[11px] font-medium text-[#3a3a3a] uppercase tracking-widest">
+        <span className="text-[11px] font-medium text-[#666] uppercase tracking-widest">
           {isThisMonth ? "This month" : formatMonthLabel(month, "long")}
         </span>
         {isThisMonth && (
@@ -77,7 +101,7 @@ function MonthlyHero({ month, stats, currency, monthlyBudget }) {
 
         {/* Transaction count badge */}
         {stats && stats.count > 0 && (
-          <span className="text-[13px] text-[#444] font-medium mb-1.5 tabular-nums">
+          <span className="text-[13px] text-[#6a6a6a] font-medium mb-1.5 tabular-nums">
             {stats.count} {stats.count === 1 ? "entry" : "entries"}
           </span>
         )}
@@ -87,7 +111,7 @@ function MonthlyHero({ month, stats, currency, monthlyBudget }) {
       {monthlyBudget != null && stats && (
         <div className="mt-3 space-y-1.5">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] text-[#3a3a3a]">
+            <span className="text-[11px] text-[#666]">
               of {formatCurrency(monthlyBudget, currency)} budget
             </span>
             <span
@@ -99,9 +123,9 @@ function MonthlyHero({ month, stats, currency, monthlyBudget }) {
           <div className="h-1 bg-[#141414] rounded-full overflow-hidden">
             <div
               className={`h-full rounded-full transition-all duration-700 ease-out ${
-                budgetPct >= 90
+                (budgetPct ?? 0) >= 90
                   ? "bg-red-500"
-                  : budgetPct >= 70
+                  : (budgetPct ?? 0) >= 70
                     ? "bg-amber-500"
                     : "bg-[#6bbf4e]"
               }`}
@@ -119,6 +143,7 @@ function MonthlyHero({ month, stats, currency, monthlyBudget }) {
 
 // ─── Dashboard view ────────────────────────────────────────────────────────────
 
+/** @param {{ month: string, currency: string, monthlyBudget: number | null }} props */
 function DashboardView({ month, currency, monthlyBudget }) {
   const expenses = useMonthExpenses(month);
   const stats = useMonthStats(month);
@@ -153,7 +178,7 @@ function SplashScreen() {
     <div className="fixed inset-0 z-50 bg-[#0a0a0a] flex items-center justify-center">
       <div className="flex flex-col items-center gap-5">
         <KudiLogo size="lg" showTagline />
-        <div className="flex items-center gap-2 text-[12px] text-[#555]">
+        <div className="flex items-center gap-2 text-[12px] text-[#7a7a7a]">
           <span className="w-1.5 h-1.5 rounded-full bg-[#6bbf4e] animate-pulse" />
           <span>Loading…</span>
         </div>
@@ -165,13 +190,16 @@ function SplashScreen() {
 // ─── Root App ──────────────────────────────────────────────────────────────────
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState("dashboard");
+  const [activeTab, setActiveTab] = useState(/** @type {"dashboard" | "analytics" | "settings"} */ ("dashboard"));
   const [month, setMonth] = useState(currentMonth);
   const [minSplashDone, setMinSplashDone] = useState(false);
 
+  /** @type {AppSettings | undefined} */
   const settings = useAllSettings();
+  const recurringTemplates = useRecurringTemplates();
   const currency = settings?.currency ?? "NGN";
   const monthlyBudget = settings?.monthlyBudget ?? null;
+  const categoryBudgets = settings?.categoryBudgets ?? {};
 
   // ── Minimum splash duration (prevents UI flicker) ─────────────────────────
   useEffect(() => {
@@ -193,13 +221,24 @@ export default function App() {
 
   const appReady = settings !== undefined && minSplashDone;
 
+  useEffect(() => {
+    if (
+      !recurringAutomationEnabled ||
+      !appReady ||
+      recurringTemplates === undefined
+    ) {
+      return;
+    }
+    syncRecurringExpensesToMonth(currentMonth()).catch(console.error);
+  }, [appReady, recurringTemplates]);
+
   return (
     <>
       {!appReady ? <SplashScreen /> : null}
 
       <AppLayout
         activeTab={activeTab}
-        onTabChange={setActiveTab}
+        onTabChange={(tab) => setActiveTab(/** @type {"dashboard" | "analytics" | "settings"} */ (tab))}
         month={month}
         onMonthChange={setMonth}
       >
@@ -216,6 +255,7 @@ export default function App() {
             month={month}
             currency={currency}
             monthlyBudget={monthlyBudget}
+            categoryBudgets={categoryBudgets}
           />
         )}
 

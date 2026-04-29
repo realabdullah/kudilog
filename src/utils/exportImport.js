@@ -7,17 +7,42 @@
 // {
 //   "meta": {
 //     "appName": "kudilog",
-//     "schemaVersion": 1,
+//     "schemaVersion": 2,
 //     "exportedAt": "<ISO 8601>",
-//     "recordCount": { "expenses": 42, "settings": 3 }
+//     "recordCount": { "expenses": 42, "settings": 3, "recurring": 2 }
 //   },
 //   "data": {
 //     "expenses": [ ...Expense ],
-//     "settings": [ ...Setting ]
+//     "settings": [ ...Setting ],
+//     "recurring": [ ...RecurringTemplate ]
 //   }
 // }
 
 import { db, SCHEMA_VERSION } from "../db/db";
+const typedDb = /** @type {any} */ (db);
+
+/**
+ * @typedef {{
+ *   id: string,
+ *   name: string,
+ *   amount: number,
+ *   category?: string,
+ *   month: string,
+ *   createdAt: string,
+ *   updatedAt: string,
+ *   recurringId?: string,
+ * }} ExportExpense
+ */
+
+/** @typedef {{ id: string, value: any }} ExportSetting */
+/** @typedef {{ id: string, name: string, amount: number, category: string, frequency: "monthly", startMonth: string, enabled: boolean, lastGeneratedMonth: string | null, createdAt: string, updatedAt: string }} ExportRecurring */
+/** @typedef {{ meta: { appName: string, schemaVersion: number, exportedAt: string, recordCount: { expenses: number, settings: number, recurring: number } }, data: { expenses: ExportExpense[], settings: ExportSetting[], recurring: ExportRecurring[] } }} ExportPayload */
+/** @typedef {{ format: string, meta: Object | null, expenseCount: number, settingCount: number, valid: boolean, error: string | null, skippedCount: number, sampleRows: Array<{ name: string, amount: number, category?: string, month?: string, createdAt?: string }>, warnings: string[] }} ImportPreviewResult */
+
+/** @param {unknown} error */
+function getErrorMessage(error) {
+  return error instanceof Error ? error.message : String(error);
+}
 
 const APP_NAME = "kudilog";
 const CSV_HEADERS = ["Name", "Amount", "Category", "Month", "Created At", "ID"];
@@ -32,6 +57,7 @@ function currentMonthKey() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 }
 
+/** @param {string} isoString */
 function toISODate(isoString) {
   const date = new Date(isoString);
   if (Number.isNaN(date.getTime())) return "";
@@ -39,12 +65,16 @@ function toISODate(isoString) {
 }
 
 function createExpenseId() {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+  ) {
     return crypto.randomUUID();
   }
   return `exp-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
+/** @param {unknown} header */
 function normalizeHeader(header) {
   return String(header || "")
     .trim()
@@ -52,6 +82,7 @@ function normalizeHeader(header) {
     .replace(/[^a-z0-9]/g, "");
 }
 
+/** @param {unknown} value */
 function escapeCSVField(value) {
   const str = value == null ? "" : String(value);
   if (/[",\n\r]/.test(str)) {
@@ -60,6 +91,7 @@ function escapeCSVField(value) {
   return str;
 }
 
+/** @param {string} line */
 function parseCSVLine(line) {
   const cells = [];
   let current = "";
@@ -92,9 +124,12 @@ function parseCSVLine(line) {
   return cells;
 }
 
+/** @param {string[]} headers */
 function detectCSVColumns(headers) {
   const normalized = headers.map(normalizeHeader);
-  const pick = (aliases) => normalized.findIndex((h) => aliases.includes(h));
+  /** @param {string[]} aliases */
+  const pick = (aliases) =>
+    normalized.findIndex((/** @type {string} */ h) => aliases.includes(h));
 
   return {
     name: pick(["name", "expensename", "title", "item"]),
@@ -106,11 +141,13 @@ function detectCSVColumns(headers) {
   };
 }
 
+/** @param {string[]} cells @param {number} index */
 function readCell(cells, index) {
   if (index < 0 || index >= cells.length) return "";
   return String(cells[index] || "").trim();
 }
 
+/** @param {unknown} raw */
 function normalizeMonth(raw) {
   const value = String(raw || "").trim();
   if (!value) return currentMonthKey();
@@ -127,6 +164,7 @@ function normalizeMonth(raw) {
   return currentMonthKey();
 }
 
+/** @param {unknown} raw */
 function normalizeAmount(raw) {
   const cleaned = String(raw || "")
     .trim()
@@ -136,6 +174,7 @@ function normalizeAmount(raw) {
   return Number.isFinite(amount) ? amount : null;
 }
 
+/** @param {unknown} raw */
 function normalizeCreatedAt(raw) {
   const value = String(raw || "").trim();
   if (!value) return new Date().toISOString();
@@ -144,10 +183,14 @@ function normalizeCreatedAt(raw) {
   return date.toISOString();
 }
 
+/** @param {unknown} raw */
 function normalizeCategory(raw) {
-  return String(raw || "").trim().toLowerCase();
+  return String(raw || "")
+    .trim()
+    .toLowerCase();
 }
 
+/** @param {ExportExpense} expense */
 function buildCSVRow(expense) {
   return [
     expense.name ?? "",
@@ -159,9 +202,12 @@ function buildCSVRow(expense) {
   ];
 }
 
+/** @param {string} text */
 async function parseCSVExpenses(text) {
   const lines = text.replace(/^\uFEFF/, "").split(/\r?\n/);
-  const nonEmptyLines = lines.filter((line) => line.trim().length > 0);
+  const nonEmptyLines = lines.filter(
+    (/** @type {string} */ line) => line.trim().length > 0,
+  );
   if (nonEmptyLines.length === 0) {
     throw new Error("Invalid file format.");
   }
@@ -170,7 +216,9 @@ async function parseCSVExpenses(text) {
   const columns = detectCSVColumns(headers);
 
   if (columns.name < 0 || columns.amount < 0) {
-    throw new Error("Invalid file format: CSV must include Name and Amount columns.");
+    throw new Error(
+      "Invalid file format: CSV must include Name and Amount columns.",
+    );
   }
 
   const expenses = [];
@@ -238,6 +286,7 @@ async function parseCSVExpenses(text) {
   };
 }
 
+/** @param {File | null | undefined} file @param {string} text */
 function detectImportFormat(file, text) {
   const lowerName = String(file?.name || "").toLowerCase();
   const mime = String(file?.type || "").toLowerCase();
@@ -262,12 +311,13 @@ function detectImportFormat(file, text) {
 /**
  * Collect all data from IndexedDB and return a serialisable export object.
  *
- * @returns {Promise<Object>} The full export payload
+ * @returns {Promise<ExportPayload>} The full export payload
  */
 export async function buildExportPayload() {
-  const [expenses, settings] = await Promise.all([
-    db.expenses.orderBy("createdAt").toArray(),
-    db.settings.toArray(),
+  const [expenses, settings, recurring] = await Promise.all([
+    typedDb.expenses.orderBy("createdAt").toArray(),
+    typedDb.settings.toArray(),
+    typedDb.recurring ? typedDb.recurring.orderBy("createdAt").toArray() : [],
   ]);
 
   return {
@@ -278,11 +328,13 @@ export async function buildExportPayload() {
       recordCount: {
         expenses: expenses.length,
         settings: settings.length,
+        recurring: recurring.length,
       },
     },
     data: {
       expenses,
       settings,
+      recurring,
     },
   };
 }
@@ -351,24 +403,26 @@ export async function exportToCSV() {
  * Throws a descriptive Error if anything is wrong.
  *
  * @param {unknown} payload
- * @returns {{ expenses: Expense[], settings: Setting[], meta: Object }}
+ * @returns {{ expenses: ExportExpense[], settings: ExportSetting[], recurring: ExportRecurring[], meta: Object }}
  */
 function validatePayload(payload) {
   if (!payload || typeof payload !== "object") {
     throw new Error("Invalid file: expected a JSON object.");
   }
 
-  if (!payload.meta || typeof payload.meta !== "object") {
+  const filePayload = /** @type {any} */ (payload);
+
+  if (!filePayload.meta || typeof filePayload.meta !== "object") {
     throw new Error("Invalid format: missing `meta` field.");
   }
 
-  if (payload.meta.appName !== APP_NAME) {
+  if (filePayload.meta.appName !== APP_NAME) {
     throw new Error(
-      `Unrecognised app: "${payload.meta.appName}". This file was not exported from KudiLog.`
+      `Unrecognised app: "${filePayload.meta.appName}". This file was not exported from KudiLog.`,
     );
   }
 
-  const fileVersion = payload.meta.schemaVersion;
+  const fileVersion = filePayload.meta.schemaVersion;
   if (typeof fileVersion !== "number") {
     throw new Error("Invalid format: `meta.schemaVersion` must be a number.");
   }
@@ -376,22 +430,22 @@ function validatePayload(payload) {
   if (fileVersion > SCHEMA_VERSION) {
     throw new Error(
       `This file was exported from a newer version of KudiLog (schema v${fileVersion}). ` +
-        `Please update the app to import it.`
+        `Please update the app to import it.`,
     );
   }
 
-  if (!payload.data || typeof payload.data !== "object") {
+  if (!filePayload.data || typeof filePayload.data !== "object") {
     throw new Error("Invalid format: missing `data` field.");
   }
 
-  if (!Array.isArray(payload.data.expenses)) {
+  if (!Array.isArray(filePayload.data.expenses)) {
     throw new Error("Invalid format: `data.expenses` must be an array.");
   }
 
   // Validate individual expense records (light-touch)
   const invalidIndexes = [];
-  for (let i = 0; i < payload.data.expenses.length; i++) {
-    const e = payload.data.expenses[i];
+  for (let i = 0; i < filePayload.data.expenses.length; i++) {
+    const e = filePayload.data.expenses[i];
     if (
       !e ||
       typeof e !== "object" ||
@@ -408,14 +462,19 @@ function validatePayload(payload) {
     throw new Error(
       `${invalidIndexes.length} expense record(s) have missing required fields ` +
         `(id, name, amount, month). Indexes: ${invalidIndexes.slice(0, 5).join(", ")}` +
-        (invalidIndexes.length > 5 ? "…" : "")
+        (invalidIndexes.length > 5 ? "…" : ""),
     );
   }
 
   return {
-    meta: payload.meta,
-    expenses: payload.data.expenses,
-    settings: Array.isArray(payload.data.settings) ? payload.data.settings : [],
+    meta: filePayload.meta,
+    expenses: filePayload.data.expenses,
+    settings: Array.isArray(filePayload.data.settings)
+      ? filePayload.data.settings
+      : [],
+    recurring: Array.isArray(filePayload.data.recurring)
+      ? filePayload.data.recurring
+      : [],
   };
 }
 
@@ -440,7 +499,7 @@ function readFileAsJSON(file) {
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
-        resolve(JSON.parse(e.target.result));
+        resolve(JSON.parse(String(e.target?.result || "")));
       } catch {
         reject(new Error("Could not parse file: make sure it is valid JSON."));
       }
@@ -450,10 +509,11 @@ function readFileAsJSON(file) {
   });
 }
 
+/** @param {File} file */
 function readFileAsText(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = (e) => resolve(String(e.target.result || ""));
+    reader.onload = (e) => resolve(String(e.target?.result || ""));
     reader.onerror = () => reject(new Error("Failed to read the file."));
     reader.readAsText(file);
   });
@@ -476,23 +536,34 @@ export async function importFromJSON(file, mode = "merge") {
   }
 
   const raw = await readFileAsJSON(file);
-  const { meta, expenses, settings } = validatePayload(raw);
+  const { meta, expenses, settings, recurring } = validatePayload(raw);
 
-  await db.transaction("rw", db.expenses, db.settings, async () => {
-    if (mode === "replace") {
-      await db.expenses.clear();
-      await db.settings.clear();
-    }
+  await typedDb.transaction(
+    "rw",
+    typedDb.expenses,
+    typedDb.settings,
+    typedDb.recurring,
+    async () => {
+      if (mode === "replace") {
+        await typedDb.expenses.clear();
+        await typedDb.settings.clear();
+        await typedDb.recurring.clear();
+      }
 
-    // bulkPut uses the primary key (id) so duplicate IDs are overwritten
-    if (expenses.length > 0) {
-      await db.expenses.bulkPut(expenses);
-    }
+      // bulkPut uses the primary key (id) so duplicate IDs are overwritten
+      if (expenses.length > 0) {
+        await typedDb.expenses.bulkPut(expenses);
+      }
 
-    if (settings.length > 0) {
-      await db.settings.bulkPut(settings);
-    }
-  });
+      if (settings.length > 0) {
+        await typedDb.settings.bulkPut(settings);
+      }
+
+      if (recurring.length > 0) {
+        await typedDb.recurring.bulkPut(recurring);
+      }
+    },
+  );
 
   return { imported: expenses.length, mode, meta };
 }
@@ -520,15 +591,20 @@ export async function importData(file, mode = "merge") {
   if (format === "csv") {
     const parsed = await parseCSVExpenses(text);
 
-    await db.transaction("rw", db.expenses, db.settings, async () => {
-      if (mode === "replace") {
-        await db.expenses.clear();
-      }
+    await typedDb.transaction(
+      "rw",
+      typedDb.expenses,
+      typedDb.settings,
+      async () => {
+        if (mode === "replace") {
+          await typedDb.expenses.clear();
+        }
 
-      if (parsed.expenses.length > 0) {
-        await db.expenses.bulkPut(parsed.expenses);
-      }
-    });
+        if (parsed.expenses.length > 0) {
+          await typedDb.expenses.bulkPut(parsed.expenses);
+        }
+      },
+    );
 
     return {
       imported: parsed.expenses.length,
@@ -547,7 +623,7 @@ export async function importData(file, mode = "merge") {
  * Useful for showing a confirmation dialog before committing.
  *
  * @param {File} file
- * @returns {Promise<{ meta: Object, expenseCount: number, settingCount: number, valid: boolean, error: string|null }>}
+ * @returns {Promise<ImportPreviewResult>}
  */
 export async function previewImport(file) {
   try {
@@ -579,7 +655,11 @@ export async function previewImport(file) {
       const warnings = [];
       if (parsed.rowErrors.length > 0) {
         warnings.push("Some rows were skipped.");
-        if (parsed.rowErrors.some((row) => row.reason === "Amount must be a number")) {
+        if (
+          parsed.rowErrors.some(
+            (row) => row.reason === "Amount must be a number",
+          )
+        ) {
           warnings.push("Amount must be a number.");
         }
       }
@@ -598,12 +678,11 @@ export async function previewImport(file) {
     }
 
     throw new Error("Invalid file format.");
-
   } catch (err) {
     const message =
       err instanceof SyntaxError
         ? "Could not parse file: make sure it is valid JSON or CSV."
-        : err.message;
+        : getErrorMessage(err);
 
     return {
       format: "unknown",

@@ -25,7 +25,7 @@ function CategoryPill({ category, selected, onClick }) {
         ${
           selected
             ? "bg-[#6bbf4e]/15 text-[#6bbf4e] border-[#6bbf4e]/30"
-            : "bg-transparent text-[#555] border-[#1f1f1f] hover:border-[#333] hover:text-[#888]"
+            : "bg-transparent text-[#7a7a7a] border-[#1f1f1f] hover:border-[#333] hover:text-[#888]"
         }
       `}
     >
@@ -44,7 +44,7 @@ function InputPreview({ raw, currency }) {
 
   if (!preview.valid) {
     return (
-      <div className="flex items-center gap-2 px-1 py-1.5 text-[12px] text-[#444]">
+      <div className="flex items-center gap-2 px-1 py-1.5 text-[12px] text-[#6a6a6a]">
         <span className="w-1.5 h-1.5 rounded-full bg-[#333] shrink-0" />
         <span>Type a name and amount — e.g. &quot;netflix 6500&quot;</span>
       </div>
@@ -55,7 +55,7 @@ function InputPreview({ raw, currency }) {
     <div className="flex items-center gap-2 px-1 py-1.5 text-[12px] animate-fade-in">
       <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
       <span className="text-[#888] truncate max-w-35">{preview.name}</span>
-      <span className="text-[#333] mx-0.5">·</span>
+      <span className="text-[#5e5e5e] mx-0.5">·</span>
       <span className="text-emerald-400 font-semibold tabular-nums">
         {formatCurrency(preview.amount, currency)}
       </span>
@@ -277,7 +277,7 @@ export default function ExpenseInput({
               spellCheck={false}
               className="
                 flex-1 bg-transparent border-0 text-white text-[15px] font-medium
-                placeholder:text-[#333] placeholder:font-normal
+                placeholder:text-[#5e5e5e] placeholder:font-normal
                 outline-none caret-[#6bbf4e]
                 focus-visible:shadow-none
                 min-w-0
@@ -295,7 +295,7 @@ export default function ExpenseInput({
                 ${
                   canSubmitFast && !submitting
                     ? "bg-[#6bbf4e] hover:bg-[#7fd460] text-[#1a3a2a] shadow-lg shadow-[#6bbf4e]/20"
-                    : "bg-[#1a1a1a] text-[#333]"
+                    : "bg-[#1a1a1a] text-[#5e5e5e]"
                 }
               `}
               aria-label="Add expense"
@@ -344,7 +344,7 @@ export default function ExpenseInput({
             <button
               type="button"
               onClick={expandForm}
-              className="text-[11px] text-[#444] hover:text-[#666] transition-colors ml-auto"
+              className="text-[11px] text-[#6a6a6a] hover:text-[#666] transition-colors ml-auto"
             >
               More options
             </button>
@@ -374,13 +374,13 @@ export default function ExpenseInput({
         >
           {/* Header */}
           <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-[#1a1a1a]">
-            <span className="text-[12px] font-medium text-[#555] uppercase tracking-widest">
+            <span className="text-[12px] font-medium text-[#7a7a7a] uppercase tracking-widest">
               Add Expense
             </span>
             <button
               type="button"
               onClick={clearForm}
-              className="text-[11px] text-[#444] hover:text-[#666] transition-colors"
+              className="text-[11px] text-[#6a6a6a] hover:text-[#666] transition-colors"
             >
               Cancel
             </button>
@@ -389,7 +389,7 @@ export default function ExpenseInput({
           <div className="p-4 space-y-3">
             {/* Name field */}
             <div>
-              <label className="block text-[11px] text-[#444] mb-1.5 uppercase tracking-widest">
+              <label className="block text-[11px] text-[#6a6a6a] mb-1.5 uppercase tracking-widest">
                 Name
               </label>
               <input
@@ -405,7 +405,7 @@ export default function ExpenseInput({
                 className="
                   w-full bg-[#0a0a0a] border border-[#1f1f1f] rounded-xl
                   px-3.5 py-2.5 text-[14px] text-white
-                  placeholder:text-[#333]
+                  placeholder:text-[#5e5e5e]
                   outline-none transition-colors
                 "
               />
@@ -413,11 +413,11 @@ export default function ExpenseInput({
 
             {/* Amount field */}
             <div>
-              <label className="block text-[11px] text-[#444] mb-1.5 uppercase tracking-widest">
+              <label className="block text-[11px] text-[#6a6a6a] mb-1.5 uppercase tracking-widest">
                 Amount
               </label>
               <div className="relative">
-                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[14px] text-[#444] font-medium pointer-events-none select-none">
+                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[14px] text-[#6a6a6a] font-medium pointer-events-none select-none">
                   {currency === "NGN"
                     ? "₦"
                     : currency === "USD"
@@ -441,7 +441,7 @@ export default function ExpenseInput({
                   className="
                     w-full bg-[#0a0a0a] border border-[#1f1f1f] rounded-xl
                     pl-8 pr-3.5 py-2.5 text-[14px] text-white tabular-nums
-                    placeholder:text-[#333]
+                    placeholder:text-[#5e5e5e]
                     outline-none transition-colors
                   "
                 />
@@ -450,9 +450,9 @@ export default function ExpenseInput({
 
             {/* Category selector */}
             <div>
-              <label className="block text-[11px] text-[#444] mb-1.5 uppercase tracking-widest">
+              <label className="block text-[11px] text-[#6a6a6a] mb-1.5 uppercase tracking-widest">
                 Category{" "}
-                <span className="normal-case text-[#333]">(optional)</span>
+                <span className="normal-case text-[#5e5e5e]">(optional)</span>
               </label>
               <div className="flex gap-1.5 flex-wrap">
                 {CATEGORIES.map((cat) => (

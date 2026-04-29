@@ -6,15 +6,15 @@
 //   - Swipe-left on touch devices to reveal delete
 //   - Smooth animations
 
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef, useState } from "react"
+import { useExpenseMutations } from "../../hooks/useExpenses"
 import {
-  formatCurrency,
-  formatRelativeTime,
-  getCategoryEmoji,
-  getCategoryLabel,
-} from "../../utils/formatters";
-import { useExpenseMutations } from "../../hooks/useExpenses";
-import { ConfirmDialog, showToast } from "../ui/index";
+    formatCurrency,
+    formatRelativeTime,
+    getCategoryEmoji,
+    getCategoryLabel,
+} from "../../utils/formatters"
+import { ConfirmDialog, showToast } from "../ui/index"
 
 // ─── Category dot colour map ───────────────────────────────────────────────────
 
@@ -115,14 +115,14 @@ function InlineEditForm({ expense, currency, onDone, onCancel }) {
           flex-1 min-w-0
           bg-[#0d0d0d] border border-[#2a2a2a] rounded-lg
           px-2.5 py-1.5 text-[13px] text-white
-          placeholder:text-[#333] outline-none
+          placeholder:text-[#5e5e5e] outline-none
           transition-colors
         "
       />
 
       {/* Amount */}
       <div className="relative shrink-0 w-28">
-        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[12px] text-[#444] pointer-events-none">
+        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[12px] text-[#6a6a6a] pointer-events-none">
           {currencySymbol}
         </span>
         <input
@@ -134,7 +134,7 @@ function InlineEditForm({ expense, currency, onDone, onCancel }) {
           className="
             w-full bg-[#0d0d0d] border border-[#2a2a2a] rounded-lg
             pl-6 pr-2.5 py-1.5 text-[13px] text-white tabular-nums
-            placeholder:text-[#333] outline-none
+            placeholder:text-[#5e5e5e] outline-none
             transition-colors
           "
         />
@@ -193,7 +193,7 @@ function InlineEditForm({ expense, currency, onDone, onCancel }) {
         aria-label="Cancel edit"
         className="
           shrink-0 w-7 h-7 rounded-lg flex items-center justify-center
-          text-[#555] hover:text-[#888] hover:bg-[#1a1a1a]
+          text-[#7a7a7a] hover:text-[#888] hover:bg-[#1a1a1a]
           transition-colors
         "
       >
@@ -376,19 +376,24 @@ export default function ExpenseItem({
                     Highest
                   </span>
                 )}
+                {expense.recurringId && (
+                  <span className="shrink-0 text-[9px] font-semibold uppercase tracking-wider text-[#6bbf4e] bg-[#6bbf4e]/10 border border-[#6bbf4e]/20 px-1.5 py-0.5 rounded">
+                    Recurring
+                  </span>
+                )}
               </div>
 
               <div className="flex items-center gap-1.5 mt-0.5">
                 {hasCategory && (
                   <>
-                    <span className="text-[11px] text-[#444]">
+                    <span className="text-[11px] text-[#6a6a6a]">
                       {getCategoryEmoji(expense.category)}{" "}
                       {getCategoryLabel(expense.category)}
                     </span>
                     <span className="text-[#2a2a2a] text-[10px]">·</span>
                   </>
                 )}
-                <span className="text-[11px] text-[#3a3a3a]">
+                <span className="text-[11px] text-[#666]">
                   {formatRelativeTime(expense.createdAt)}
                 </span>
               </div>
@@ -407,8 +412,8 @@ export default function ExpenseItem({
                 viewBox="0 0 14 14"
                 fill="none"
                 className={`
-                  text-[#333] transition-transform duration-200
-                  ${expanded ? "rotate-180 text-[#555]" : ""}
+                  text-[#5e5e5e] transition-transform duration-200
+                  ${expanded ? "rotate-180 text-[#7a7a7a]" : ""}
                 `}
               >
                 <path

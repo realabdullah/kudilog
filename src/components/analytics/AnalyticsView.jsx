@@ -7,25 +7,33 @@
 //   - Spending insight message
 //   - Recurring expenses detection
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react"
 import {
-  useMonthStats,
-  useMonthlyTrend,
-  useRecurringExpenses,
-} from "../../hooks/useExpenses";
+    useBudgetVariance,
+    useCategoryTrend,
+    useMonthStats,
+    useMonthlyTrend,
+    useRecurringExpenses,
+    useSpendingAnomalies,
+    useWeekdaySpendDistribution,
+} from "../../hooks/useExpenses"
 import {
-  formatCurrency,
-  formatMonthShort,
-  formatPercentChange,
-  percentChange,
-  getCategoryEmoji,
-  getCategoryLabel,
-  clamp,
-} from "../../utils/formatters";
-import { Skeleton, EmptyState, Badge } from "../ui/index";
+    clamp,
+    formatCurrency,
+    formatMonthShort,
+    formatPercentChange,
+    getCategoryEmoji,
+    getCategoryLabel,
+    percentChange,
+} from "../../utils/formatters"
+import { Badge, EmptyState, Skeleton } from "../ui/index"
+
+/** @typedef {{ month: string, total: number }} TrendPoint */
+/** @typedef {{ total: number, count: number, highest: { amount: number, name: string } | null, average: number, byCategory: Record<string, number> }} StatsShape */
 
 // ─── Stat Card ─────────────────────────────────────────────────────────────────
 
+/** @param {{ label: string, value: string, sub?: string, accent?: boolean }} props */
 function StatCard({ label, value, sub, accent = false }) {
   return (
     <div
@@ -38,7 +46,7 @@ function StatCard({ label, value, sub, accent = false }) {
         }
       `}
     >
-      <span className="text-[11px] text-[#444] uppercase tracking-widest font-medium">
+      <span className="text-[11px] text-[#6a6a6a] uppercase tracking-widest font-medium">
         {label}
       </span>
       <span
@@ -49,7 +57,7 @@ function StatCard({ label, value, sub, accent = false }) {
         {value}
       </span>
       {sub && (
-        <span className="text-[11px] text-[#3a3a3a] leading-tight mt-0.5">
+        <span className="text-[11px] text-[#666] leading-tight mt-0.5">
           {sub}
         </span>
       )}
@@ -69,6 +77,7 @@ function StatCardSkeleton() {
 
 // ─── Category Row ──────────────────────────────────────────────────────────────
 
+/** @param {{ categoryId: string, amount: number, total: number, currency: string, rank: number }} props */
 function CategoryRow({ categoryId, amount, total, currency, rank }) {
   const pct = total > 0 ? (amount / total) * 100 : 0;
   const barWidth = `${clamp(pct, 0, 100).toFixed(1)}%`;
@@ -101,7 +110,7 @@ function CategoryRow({ categoryId, amount, total, currency, rank }) {
           </span>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <span className="text-[11px] text-[#444] tabular-nums">
+          <span className="text-[11px] text-[#6a6a6a] tabular-nums">
             {pct.toFixed(1)}%
           </span>
           <span className="text-[13px] font-semibold text-white tabular-nums">
@@ -121,8 +130,60 @@ function CategoryRow({ categoryId, amount, total, currency, rank }) {
   );
 }
 
+/** @param {{ categoryId: string, spent: number, budget: number, currency: string }} props */
+function CategoryBudgetRow({ categoryId, spent, budget, currency }) {
+  const pct = budget > 0 ? (spent / budget) * 100 : 0;
+  const capped = clamp(pct, 0, 100);
+  const remaining = Math.max(budget - spent, 0);
+  const over = Math.max(spent - budget, 0);
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-[13px] leading-none">
+            {getCategoryEmoji(categoryId)}
+          </span>
+          <span className="text-[13px] text-[#c0c0c0] font-medium truncate">
+            {getCategoryLabel(categoryId)}
+          </span>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <span
+            className={`text-[11px] tabular-nums ${
+              pct >= 100 ? "text-red-400" : pct >= 80 ? "text-amber-400" : "text-emerald-400"
+            }`}
+          >
+            {pct.toFixed(0)}%
+          </span>
+          <span className="text-[12px] text-[#999] tabular-nums">
+            {formatCurrency(spent, currency, true)} / {formatCurrency(budget, currency, true)}
+          </span>
+        </div>
+      </div>
+
+      <div className="h-1 bg-[#1a1a1a] rounded-full overflow-hidden">
+        <div
+          className={`h-full rounded-full transition-all duration-700 ease-out ${
+            pct >= 100 ? "bg-red-500" : pct >= 80 ? "bg-amber-500" : "bg-emerald-500"
+          }`}
+          style={{ width: `${capped.toFixed(1)}%` }}
+        />
+      </div>
+
+      <div className="flex justify-between text-[10px] text-[#666] tabular-nums">
+        <span>
+          {over > 0 ? `${formatCurrency(over, currency, true)} over` : `${formatCurrency(remaining, currency, true)} left`}
+        </span>
+        <span>{formatCurrency(spent, currency, true)} spent</span>
+      </div>
+    </div>
+  );
+}
+
 // ─── Trend Bar Chart ───────────────────────────────────────────────────────────
 
+/** @param {{ trend: TrendPoint[], currency: string, currentMonth: string }} props */
 function TrendChart({ trend, currency, currentMonth }) {
   const max = useMemo(() => Math.max(...trend.map((t) => t.total), 1), [trend]);
 
@@ -161,7 +222,7 @@ function TrendChart({ trend, currency, currentMonth }) {
             {/* Label */}
             <span
               className={`text-[9px] tabular-nums font-medium leading-none ${
-                isCurrent ? "text-[#6bbf4e]" : "text-[#333]"
+                isCurrent ? "text-[#6bbf4e]" : "text-[#5e5e5e]"
               }`}
             >
               {formatMonthShort(point.month).split(" ")[0]}
@@ -175,6 +236,7 @@ function TrendChart({ trend, currency, currentMonth }) {
 
 // ─── Insight Banner ────────────────────────────────────────────────────────────
 
+/** @param {{ currentTotal: number, prevTotal: number, topCategory: string | null, topCategoryAmount: number, totalExpenses: number }} props */
 function InsightBanner({
   currentTotal,
   prevTotal,
@@ -230,7 +292,7 @@ function InsightBanner({
       {insights.map((ins, i) => (
         <div
           key={i}
-          className={`flex items-start gap-2.5 px-3.5 py-3 rounded-xl border text-[12px] leading-relaxed ${variantClasses[ins.variant]}`}
+          className={`flex items-start gap-2.5 px-3.5 py-3 rounded-xl border text-[12px] leading-relaxed ${variantClasses[/** @type {keyof typeof variantClasses} */ (ins.variant)]}`}
         >
           <span className="text-[14px] leading-tight shrink-0 mt-px">
             {ins.icon}
@@ -244,14 +306,21 @@ function InsightBanner({
 
 // ─── Recurring Expenses ────────────────────────────────────────────────────────
 
+/** @param {{ recurring: Array<{ name: string, months: string[], avgAmount: number }> | undefined, currency: string }} props */
 function RecurringSection({ recurring, currency }) {
+  const [showAll, setShowAll] = useState(false);
+
   if (!recurring || recurring.length === 0) return null;
+  const visible = showAll ? recurring : recurring.slice(0, 5);
 
   return (
     <div>
-      <SectionHeader title="Recurring" subtitle="Appears in 2+ months" />
+      <SectionHeader
+        title="Recurring"
+        subtitle={`${recurring.length} detected entries`}
+      />
       <div className="space-y-0 divide-y divide-[#111]">
-        {recurring.slice(0, 5).map((item) => (
+        {visible.map((item) => (
           <div
             key={item.name}
             className="flex items-center justify-between py-3 gap-3"
@@ -265,9 +334,70 @@ function RecurringSection({ recurring, currency }) {
                   {item.months.length}× months
                 </Badge>
               </div>
-              <span className="text-[11px] text-[#3a3a3a]">
+              <span className="text-[11px] text-[#666]">
                 avg {formatCurrency(item.avgAmount, currency)} / month
               </span>
+            </div>
+          </div>
+        ))}
+      </div>
+      {recurring.length > 5 ? (
+        <button
+          type="button"
+          onClick={() => setShowAll((prev) => !prev)}
+          className="mt-2.5 text-[11px] text-[#666] hover:text-[#9a9a9a] transition-colors"
+        >
+          {showAll ? "Show less" : `View all (${recurring.length})`}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+/** @param {{ anomalies: { monthly: { kind: "spike" | "drop", current: number, baseline: number, changePct: number } | null, categories: Array<{ categoryId: string, current: number, baseline: number, changePct: number }> }, currency: string }} props */
+function AnomalySection({ anomalies, currency }) {
+  const hasMonthly = anomalies.monthly !== null;
+  const hasCategory = anomalies.categories.length > 0;
+  if (!hasMonthly && !hasCategory) return null;
+
+  return (
+    <div>
+      <SectionHeader title="Anomaly Signals" subtitle="unusual changes" />
+      <div className="space-y-2.5">
+        {anomalies.monthly ? (
+          <div className="rounded-xl border border-[#1a1a1a] bg-[#0d0d0d] px-3.5 py-3">
+            <div className="text-[12px] text-[#d0d0d0]">
+              {anomalies.monthly.kind === "spike" ? "Monthly spend spike" : "Monthly spend drop"}
+            </div>
+            <div className="mt-1 text-[11px] text-[#5a5a5a] tabular-nums">
+              {formatCurrency(anomalies.monthly.current, currency, true)} vs {formatCurrency(anomalies.monthly.baseline, currency, true)} baseline
+            </div>
+            <div
+              className={`mt-1.5 text-[11px] font-semibold tabular-nums ${
+                anomalies.monthly.kind === "spike" ? "text-red-400" : "text-emerald-400"
+              }`}
+            >
+              {anomalies.monthly.changePct >= 0 ? "+" : ""}{anomalies.monthly.changePct.toFixed(1)}%
+            </div>
+          </div>
+        ) : null}
+
+        {anomalies.categories.map((row) => (
+          <div
+            key={row.categoryId}
+            className="rounded-xl border border-[#171717] bg-[#0b0b0b] px-3 py-2.5"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[12px] text-[#c0c0c0] flex items-center gap-1.5">
+                <span>{getCategoryEmoji(row.categoryId)}</span>
+                <span>{getCategoryLabel(row.categoryId)}</span>
+              </span>
+              <span className="text-[11px] text-red-400 tabular-nums font-semibold">
+                +{row.changePct.toFixed(1)}%
+              </span>
+            </div>
+            <div className="mt-1 text-[10px] text-[#4a4a4a] tabular-nums">
+              {formatCurrency(row.current, currency, true)} now vs {formatCurrency(row.baseline, currency, true)} typical
             </div>
           </div>
         ))}
@@ -278,13 +408,157 @@ function RecurringSection({ recurring, currency }) {
 
 // ─── Section Header ────────────────────────────────────────────────────────────
 
+/** @param {{ title: string, subtitle?: string }} props */
 function SectionHeader({ title, subtitle }) {
   return (
     <div className="flex items-baseline justify-between mb-3">
-      <h3 className="text-[12px] font-semibold text-[#555] uppercase tracking-widest">
+      <h3 className="text-[12px] font-semibold text-[#7a7a7a] uppercase tracking-widest">
         {title}
       </h3>
-      {subtitle && <span className="text-[11px] text-[#333]">{subtitle}</span>}
+      {subtitle && <span className="text-[11px] text-[#5e5e5e]">{subtitle}</span>}
+    </div>
+  );
+}
+
+/** @param {{ variance: { budget: number, spent: number, variance: number, pct: number } | null, currency: string }} props */
+function GlobalVariance({ variance, currency }) {
+  if (!variance) return null;
+
+  const over = variance.variance < 0;
+  return (
+    <div className="rounded-xl border border-[#1a1a1a] bg-[#0d0d0d] p-3">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[11px] text-[#7a7a7a] uppercase tracking-widest font-medium">
+          Global Variance
+        </span>
+        <span
+          className={`text-[12px] font-semibold tabular-nums ${
+            over ? "text-red-400" : "text-emerald-400"
+          }`}
+        >
+          {over ? "Over" : "Under"} {formatCurrency(Math.abs(variance.variance), currency, true)}
+        </span>
+      </div>
+      <div className="mt-1.5 text-[11px] text-[#666]">
+        {formatCurrency(variance.spent, currency, true)} spent of {formatCurrency(variance.budget, currency, true)}
+      </div>
+      <div className="mt-2 h-1.5 bg-[#1a1a1a] rounded-full overflow-hidden">
+        <div
+          className={`h-full rounded-full ${over ? "bg-red-500" : "bg-emerald-500"}`}
+          style={{ width: `${clamp(variance.pct, 0, 100).toFixed(1)}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+/** @param {{ rows: Array<{ categoryId: string, budget: number, spent: number, variance: number, pct: number }>, currency: string }} props */
+function CategoryVariance({ rows, currency }) {
+  if (!rows.length) return null;
+
+  return (
+    <div className="space-y-2.5">
+      {rows.slice(0, 4).map((row) => {
+        const over = row.variance < 0;
+        return (
+          <div
+            key={row.categoryId}
+            className="flex items-center justify-between gap-3 rounded-lg border border-[#171717] bg-[#0b0b0b] px-3 py-2"
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <span>{getCategoryEmoji(row.categoryId)}</span>
+              <span className="text-[12px] text-[#b5b5b5] truncate">
+                {getCategoryLabel(row.categoryId)}
+              </span>
+            </div>
+            <div className="text-right shrink-0">
+              <div
+                className={`text-[11px] tabular-nums font-semibold ${
+                  over ? "text-red-400" : "text-emerald-400"
+                }`}
+              >
+                {over ? "-" : "+"}{formatCurrency(Math.abs(row.variance), currency, true)}
+              </div>
+              <div className="text-[10px] text-[#666] tabular-nums">
+                {formatCurrency(row.spent, currency, true)} / {formatCurrency(row.budget, currency, true)}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/** @param {{ weekdays: Array<{ day: number, total: number, count: number }>, currency: string }} props */
+function WeekdayDistribution({ weekdays, currency }) {
+  if (!weekdays.length) return null;
+
+  const labels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const max = Math.max(...weekdays.map((d) => d.total), 1);
+
+  return (
+    <div className="space-y-2.5">
+      {weekdays.map((item) => {
+        const width = max > 0 ? clamp((item.total / max) * 100, 0, 100) : 0;
+        return (
+          <div key={item.day} className="space-y-1">
+            <div className="flex items-center justify-between text-[11px]">
+              <span className="text-[#666]">{labels[item.day]}</span>
+              <span className="text-[#9a9a9a] tabular-nums">
+                {item.total > 0 ? formatCurrency(item.total, currency, true) : "—"}
+              </span>
+            </div>
+            <div className="h-1 bg-[#191919] rounded-full overflow-hidden">
+              <div
+                className="h-full bg-[#6bbf4e] rounded-full"
+                style={{ width: `${width.toFixed(1)}%` }}
+              />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/** @param {{ trend: { months: string[], series: Array<{ categoryId: string, total: number, points: Array<{ month: string, total: number }> }> }, currency: string }} props */
+function CategoryMomentum({ trend, currency }) {
+  if (!trend.series.length) return null;
+
+  const max = Math.max(
+    ...trend.series.flatMap((series) => series.points.map((p) => p.total)),
+    1,
+  );
+
+  return (
+    <div className="space-y-3">
+      {trend.series.map((series) => (
+        <div key={series.categoryId} className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <span className="text-[12px] text-[#bcbcbc] font-medium flex items-center gap-1.5">
+              <span>{getCategoryEmoji(series.categoryId)}</span>
+              <span>{getCategoryLabel(series.categoryId)}</span>
+            </span>
+            <span className="text-[10px] text-[#666] tabular-nums">
+              {series.points[series.points.length - 1]?.total > 0
+                ? formatCurrency(series.points[series.points.length - 1].total, currency, true)
+                : "—"}
+            </span>
+          </div>
+          <div className="flex items-end gap-1 h-10">
+            {series.points.map((point) => (
+              <div key={point.month} className="flex-1 h-full flex items-end">
+                <div
+                  className="w-full bg-[#2a2a2a] rounded-sm"
+                  style={{ height: `${clamp((point.total / max) * 100, 6, 100).toFixed(1)}%` }}
+                  title={`${formatMonthShort(point.month)}: ${point.total}`}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -293,19 +567,27 @@ function SectionHeader({ title, subtitle }) {
 
 /**
  * @param {{
- *   month: string,       // "YYYY-MM" – the month being analysed
- *   currency: string,
+ *   month: string,
+ *   currency?: string,
  *   monthlyBudget?: number | null,
+ *   categoryBudgets?: Record<string, number>,
  * }} props
  */
 export default function AnalyticsView({
   month,
   currency = "NGN",
   monthlyBudget = null,
+  categoryBudgets = {},
 }) {
+  /** @type {StatsShape | undefined} */
   const stats = useMonthStats(month);
+  /** @type {TrendPoint[] | undefined} */
   const trend = useMonthlyTrend(month, 6);
   const recurring = useRecurringExpenses(2);
+  const anomalies = useSpendingAnomalies(month, 6);
+  const categoryTrend = useCategoryTrend(month, 6, 4);
+  const weekdaySpend = useWeekdaySpendDistribution(month);
+  const budgetVariance = useBudgetVariance(month, monthlyBudget, categoryBudgets);
 
   // ── Derived: prev month total for comparison ──────────────────────────────
   const prevMonthTotal = useMemo(() => {
@@ -326,6 +608,24 @@ export default function AnalyticsView({
   const topCategory = sortedCategories[0]?.[0] ?? null;
   const topCategoryAmount = sortedCategories[0]?.[1] ?? 0;
 
+  const categoryBudgetRows = useMemo(() => {
+    const entries = Object.entries(categoryBudgets || {}).filter(
+      ([, value]) => Number.isFinite(Number(value)) && Number(value) > 0,
+    );
+
+    return entries
+      .map(([categoryId, budget]) => {
+        const spent = Number(stats?.byCategory?.[categoryId] ?? 0);
+        return {
+          categoryId,
+          spent,
+          budget: Number(budget),
+          pct: Number(budget) > 0 ? (spent / Number(budget)) * 100 : 0,
+        };
+      })
+      .sort((a, b) => b.pct - a.pct);
+  }, [categoryBudgets, stats]);
+
   // ── Budget progress ────────────────────────────────────────────────────────
   const budgetPct = useMemo(() => {
     if (!monthlyBudget || !stats) return null;
@@ -333,7 +633,7 @@ export default function AnalyticsView({
   }, [monthlyBudget, stats]);
 
   // ── Loading ────────────────────────────────────────────────────────────────
-  if (!stats || !trend) {
+  if (!stats || !trend || !categoryTrend || !weekdaySpend || !budgetVariance || !anomalies) {
     return (
       <div className="space-y-6 pb-8">
         {/* Stats grid skeleton */}
@@ -348,9 +648,9 @@ export default function AnalyticsView({
           <Skeleton className="h-3 w-20 mb-3 rounded" />
           <div className="flex items-end gap-1.5 h-20">
             {[65, 40, 80, 30, 90, 55].map((h, i) => (
-              <Skeleton
+              <div
                 key={i}
-                className="flex-1 rounded-t-sm"
+                className="flex-1 rounded-t-sm bg-[#111]"
                 style={{ height: `${h}%` }}
               />
             ))}
@@ -409,7 +709,7 @@ export default function AnalyticsView({
         />
         <StatCard
           label="vs Last Month"
-          value={prevMonthTotal === 0 ? "—" : formatPercentChange(mom)}
+          value={prevMonthTotal === 0 ? "—" : formatPercentChange(mom ?? 0)}
           sub={
             prevMonthTotal > 0
               ? formatCurrency(prevMonthTotal, currency, true) + " last mo."
@@ -422,7 +722,7 @@ export default function AnalyticsView({
       {monthlyBudget && budgetPct !== null && (
         <div>
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[11px] text-[#444] uppercase tracking-widest font-medium">
+            <span className="text-[11px] text-[#6a6a6a] uppercase tracking-widest font-medium">
               Budget
             </span>
             <div className="flex items-center gap-1.5">
@@ -437,7 +737,7 @@ export default function AnalyticsView({
               >
                 {budgetPct.toFixed(0)}%
               </span>
-              <span className="text-[11px] text-[#333]">
+              <span className="text-[11px] text-[#5e5e5e]">
                 of {formatCurrency(monthlyBudget, currency, true)}
               </span>
             </div>
@@ -462,10 +762,10 @@ export default function AnalyticsView({
 
           {/* Labels */}
           <div className="flex justify-between mt-1.5">
-            <span className="text-[10px] text-[#333] tabular-nums">
+            <span className="text-[10px] text-[#5e5e5e] tabular-nums">
               {formatCurrency(stats.total, currency, true)} spent
             </span>
-            <span className="text-[10px] text-[#333] tabular-nums">
+            <span className="text-[10px] text-[#5e5e5e] tabular-nums">
               {formatCurrency(
                 Math.max(monthlyBudget - stats.total, 0),
                 currency,
@@ -473,6 +773,36 @@ export default function AnalyticsView({
               )}{" "}
               left
             </span>
+          </div>
+        </div>
+      )}
+
+      {categoryBudgetRows.length > 0 && (
+        <div>
+          <SectionHeader
+            title="Category Budgets"
+            subtitle={`${categoryBudgetRows.length} active`}
+          />
+          <div className="space-y-4">
+            {categoryBudgetRows.map((row) => (
+              <CategoryBudgetRow
+                key={row.categoryId}
+                categoryId={row.categoryId}
+                spent={row.spent}
+                budget={row.budget}
+                currency={currency}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {(budgetVariance.global || budgetVariance.categories.length > 0) && (
+        <div>
+          <SectionHeader title="Budget Variance" subtitle="target vs actual" />
+          <div className="space-y-3">
+            <GlobalVariance variance={budgetVariance.global} currency={currency} />
+            <CategoryVariance rows={budgetVariance.categories} currency={currency} />
           </div>
         </div>
       )}
@@ -485,6 +815,8 @@ export default function AnalyticsView({
         topCategoryAmount={topCategoryAmount}
         totalExpenses={stats.count}
       />
+
+      <AnomalySection anomalies={anomalies} currency={currency} />
 
       {/* ── 6-Month Trend ─────────────────────────────────────────────────── */}
       <div>
@@ -554,6 +886,18 @@ export default function AnalyticsView({
               );
             })()}
           </div>
+        </div>
+      )}
+
+      <div>
+        <SectionHeader title="Spending Rhythm" subtitle="by weekday" />
+        <WeekdayDistribution weekdays={weekdaySpend} currency={currency} />
+      </div>
+
+      {categoryTrend.series.length > 0 && (
+        <div>
+          <SectionHeader title="Category Momentum" subtitle="last 6 months" />
+          <CategoryMomentum trend={categoryTrend} currency={currency} />
         </div>
       )}
 

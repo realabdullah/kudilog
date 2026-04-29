@@ -9,6 +9,53 @@ import { v4 as uuidv4 } from "uuid";
 import { db } from "../db/db";
 import { currentMonth, toMonthKey } from "../utils/formatters";
 
+const typedDb = /** @type {any} */ (db);
+
+/**
+ * @typedef {{
+ *   id: string,
+ *   name: string,
+ *   amount: number,
+ *   category: string,
+ *   month: string,
+ *   createdAt: string,
+ *   updatedAt: string,
+ *   recurringId?: string,
+ * }} Expense
+ */
+
+/**
+ * @typedef {{
+ *   id: string,
+ *   name: string,
+ *   amount: number,
+ *   category: string,
+ *   frequency: "monthly",
+ *   startMonth: string,
+ *   enabled: boolean,
+ *   lastGeneratedMonth: string | null,
+ *   createdAt: string,
+ *   updatedAt: string,
+ * }} RecurringTemplate
+ */
+
+/**
+ * @typedef {{
+ *   id: string,
+ *   value: any,
+ * }} SettingRow
+ */
+
+/**
+ * @typedef {{
+ *   currency?: string,
+ *   monthlyBudget?: number | null,
+ *   categoryBudgets?: Record<string, number>,
+ *   theme?: string,
+ *   [key: string]: any,
+ * }} AppSettings
+ */
+
 // ─── Expenses ──────────────────────────────────────────────────────────────────
 
 /**
@@ -20,12 +67,12 @@ import { currentMonth, toMonthKey } from "../utils/formatters";
 export function useMonthExpenses(month) {
   return useLiveQuery(
     () =>
-      db.expenses
+      typedDb.expenses
         .where("month")
         .equals(month)
         .reverse()
         .sortBy("createdAt"),
-    [month]
+    [month],
   );
 }
 
@@ -36,7 +83,7 @@ export function useMonthExpenses(month) {
  */
 export function useAllExpenses() {
   return useLiveQuery(() =>
-    db.expenses.orderBy("createdAt").reverse().toArray()
+    typedDb.expenses.orderBy("createdAt").reverse().toArray(),
   );
 }
 
@@ -48,7 +95,7 @@ export function useAllExpenses() {
  */
 export function useAvailableMonths() {
   return useLiveQuery(async () => {
-    const all = await db.expenses.orderBy("month").uniqueKeys();
+    const all = await typedDb.expenses.orderBy("month").uniqueKeys();
     // uniqueKeys returns ascending; we want newest first
     return [...all].reverse();
   });
@@ -61,7 +108,7 @@ export function useAvailableMonths() {
  * @returns {Expense|undefined}
  */
 export function useExpenseById(id) {
-  return useLiveQuery(() => (id ? db.expenses.get(id) : undefined), [id]);
+  return useLiveQuery(() => (id ? typedDb.expenses.get(id) : undefined), [id]);
 }
 
 // ─── Mutations ─────────────────────────────────────────────────────────────────
@@ -77,20 +124,25 @@ export function useExpenseMutations() {
    * @param {{ name: string, amount: number, category?: string, month?: string }} data
    * @returns {Promise<string>} The new expense's ID
    */
-  const addExpense = useCallback(async (data) => {
-    const now = new Date().toISOString();
-    const expense = {
-      id: uuidv4(),
-      name: data.name.trim(),
-      amount: Number(data.amount),
-      category: data.category ?? "",
-      month: data.month ?? currentMonth(),
-      createdAt: now,
-      updatedAt: now,
-    };
-    await db.expenses.add(expense);
-    return expense.id;
-  }, []);
+  const addExpense = useCallback(
+    async (
+      /** @type {{ name: string, amount: number, category?: string, month?: string }} */ data,
+    ) => {
+      const now = new Date().toISOString();
+      const expense = {
+        id: uuidv4(),
+        name: data.name.trim(),
+        amount: Number(data.amount),
+        category: data.category ?? "",
+        month: data.month ?? currentMonth(),
+        createdAt: now,
+        updatedAt: now,
+      };
+      await typedDb.expenses.add(expense);
+      return expense.id;
+    },
+    [],
+  );
 
   /**
    * Update an existing expense by ID.
@@ -100,24 +152,30 @@ export function useExpenseMutations() {
    * @param {Partial<Expense>} changes
    * @returns {Promise<number>} Number of records updated (0 or 1)
    */
-  const updateExpense = useCallback(async (id, changes) => {
-    const safeChanges = { ...changes, updatedAt: new Date().toISOString() };
-    // Never allow id or createdAt to be mutated via this path
-    delete safeChanges.id;
-    delete safeChanges.createdAt;
+  const updateExpense = useCallback(
+    async (
+      /** @type {string} */ id,
+      /** @type {Partial<Expense>} */ changes,
+    ) => {
+      const safeChanges = { ...changes, updatedAt: new Date().toISOString() };
+      // Never allow id or createdAt to be mutated via this path
+      delete safeChanges.id;
+      delete safeChanges.createdAt;
 
-    // If amount is being updated, ensure it's a number
-    if (safeChanges.amount !== undefined) {
-      safeChanges.amount = Number(safeChanges.amount);
-    }
+      // If amount is being updated, ensure it's a number
+      if (safeChanges.amount !== undefined) {
+        safeChanges.amount = Number(safeChanges.amount);
+      }
 
-    // If name is being updated, trim whitespace
-    if (safeChanges.name !== undefined) {
-      safeChanges.name = safeChanges.name.trim();
-    }
+      // If name is being updated, trim whitespace
+      if (safeChanges.name !== undefined) {
+        safeChanges.name = safeChanges.name.trim();
+      }
 
-    return db.expenses.update(id, safeChanges);
-  }, []);
+      return typedDb.expenses.update(id, safeChanges);
+    },
+    [],
+  );
 
   /**
    * Delete an expense by ID.
@@ -125,8 +183,8 @@ export function useExpenseMutations() {
    * @param {string} id
    * @returns {Promise<void>}
    */
-  const deleteExpense = useCallback(async (id) => {
-    await db.expenses.delete(id);
+  const deleteExpense = useCallback(async (/** @type {string} */ id) => {
+    await typedDb.expenses.delete(id);
   }, []);
 
   /**
@@ -135,9 +193,12 @@ export function useExpenseMutations() {
    * @param {string} month - "YYYY-MM"
    * @returns {Promise<number>} Number of deleted records
    */
-  const deleteMonthExpenses = useCallback(async (month) => {
-    return db.expenses.where("month").equals(month).delete();
-  }, []);
+  const deleteMonthExpenses = useCallback(
+    async (/** @type {string} */ month) => {
+      return typedDb.expenses.where("month").equals(month).delete();
+    },
+    [],
+  );
 
   /**
    * Duplicate an expense (creating a new one with the same fields, timestamped now).
@@ -145,8 +206,8 @@ export function useExpenseMutations() {
    * @param {string} id
    * @returns {Promise<string|null>} New expense ID, or null if source not found
    */
-  const duplicateExpense = useCallback(async (id) => {
-    const original = await db.expenses.get(id);
+  const duplicateExpense = useCallback(async (/** @type {string} */ id) => {
+    const original = await typedDb.expenses.get(id);
     if (!original) return null;
 
     const now = new Date().toISOString();
@@ -156,7 +217,7 @@ export function useExpenseMutations() {
       createdAt: now,
       updatedAt: now,
     };
-    await db.expenses.add(duplicate);
+    await typedDb.expenses.add(duplicate);
     return duplicate.id;
   }, []);
 
@@ -181,7 +242,7 @@ export function useExpenseMutations() {
  */
 export function useSetting(key, defaultValue = null) {
   return useLiveQuery(async () => {
-    const row = await db.settings.get(key);
+    const row = await typedDb.settings.get(key);
     return row !== undefined ? row.value : defaultValue;
   }, [key]);
 }
@@ -190,11 +251,11 @@ export function useSetting(key, defaultValue = null) {
  * Reactive hook that returns all settings as a plain object.
  * e.g. { currency: "NGN", monthlyBudget: 50000, theme: "dark" }
  *
- * @returns {Object|undefined}
+ * @returns {AppSettings|undefined}
  */
 export function useAllSettings() {
   return useLiveQuery(async () => {
-    const rows = await db.settings.toArray();
+    const rows = /** @type {SettingRow[]} */ (await typedDb.settings.toArray());
     return Object.fromEntries(rows.map((r) => [r.id, r.value]));
   });
 }
@@ -206,8 +267,62 @@ export function useAllSettings() {
  */
 export function useSettingMutation() {
   return useCallback(async (key, value) => {
-    await db.settings.put({ id: key, value });
+    await typedDb.settings.put({ id: key, value });
   }, []);
+}
+
+/**
+ * Reactive hook for category budgets object.
+ * Shape: { [categoryId: string]: number }
+ *
+ * @returns {Record<string, number>|undefined}
+ */
+export function useCategoryBudgets() {
+  return useSetting("categoryBudgets", {});
+}
+
+/**
+ * Returns stable mutation helpers for category budgets.
+ */
+export function useCategoryBudgetMutations() {
+  const setCategoryBudget = useCallback(
+    async (/** @type {string} */ categoryId, /** @type {number} */ amount) => {
+      const parsed = Number(amount);
+      if (!Number.isFinite(parsed) || parsed < 0) {
+        throw new Error("Category budget must be a valid number.");
+      }
+
+      const existing = await typedDb.settings.get("categoryBudgets");
+      const budgets =
+        existing && existing.value && typeof existing.value === "object"
+          ? { ...existing.value }
+          : {};
+
+      budgets[categoryId] = parsed;
+      await typedDb.settings.put({ id: "categoryBudgets", value: budgets });
+    },
+    [],
+  );
+
+  const clearCategoryBudget = useCallback(
+    async (/** @type {string} */ categoryId) => {
+      const existing = await typedDb.settings.get("categoryBudgets");
+      const budgets =
+        existing && existing.value && typeof existing.value === "object"
+          ? { ...existing.value }
+          : {};
+
+      if (budgets[categoryId] === undefined) return;
+      delete budgets[categoryId];
+      await typedDb.settings.put({ id: "categoryBudgets", value: budgets });
+    },
+    [],
+  );
+
+  return {
+    setCategoryBudget,
+    clearCategoryBudget,
+  };
 }
 
 // ─── Analytics helpers (reactive) ─────────────────────────────────────────────
@@ -226,10 +341,9 @@ export function useSettingMutation() {
  */
 export function useMonthStats(month) {
   return useLiveQuery(async () => {
-    const expenses = await db.expenses
-      .where("month")
-      .equals(month)
-      .toArray();
+    const expenses = /** @type {Expense[]} */ (
+      await typedDb.expenses.where("month").equals(month).toArray()
+    );
 
     if (expenses.length === 0) {
       return {
@@ -237,13 +351,13 @@ export function useMonthStats(month) {
         count: 0,
         highest: null,
         average: 0,
-        byCategory: {},
+        byCategory: /** @type {Record<string, number>} */ ({}),
       };
     }
 
     let total = 0;
     let highest = expenses[0];
-    const byCategory = {};
+    const byCategory = /** @type {Record<string, number>} */ ({});
 
     for (const exp of expenses) {
       total += exp.amount;
@@ -286,10 +400,9 @@ export function useMonthlyTrend(currentMonthKey, lookback = 6) {
     }
 
     // Fetch all expenses in the range in one query
-    const expenses = await db.expenses
-      .where("month")
-      .anyOf(months)
-      .toArray();
+    const expenses = /** @type {Expense[]} */ (
+      await typedDb.expenses.where("month").anyOf(months).toArray()
+    );
 
     // Aggregate by month
     const totals = Object.fromEntries(months.map((m) => [m, 0]));
@@ -304,6 +417,261 @@ export function useMonthlyTrend(currentMonthKey, lookback = 6) {
 }
 
 /**
+ * Compute top category trend over the last N months.
+ *
+ * @param {string} currentMonthKey
+ * @param {number} lookback
+ * @param {number} limit
+ * @returns {{ months: string[], series: Array<{ categoryId: string, total: number, points: Array<{ month: string, total: number }> }> }|undefined}
+ */
+export function useCategoryTrend(currentMonthKey, lookback = 6, limit = 4) {
+  return useLiveQuery(async () => {
+    const months = /** @type {string[]} */ ([]);
+    const [baseYear, baseMonth] = currentMonthKey.split("-").map(Number);
+
+    for (let i = lookback - 1; i >= 0; i--) {
+      const d = new Date(baseYear, baseMonth - 1 - i, 1);
+      months.push(toMonthKey(d));
+    }
+
+    const expenses = /** @type {Expense[]} */ (
+      await typedDb.expenses.where("month").anyOf(months).toArray()
+    );
+
+    const totalsByCategory = /** @type {Record<string, number>} */ ({});
+    const byMonthByCategory =
+      /** @type {Record<string, Record<string, number>>} */ ({});
+
+    for (const exp of expenses) {
+      const categoryId = exp.category || "other";
+      totalsByCategory[categoryId] =
+        (totalsByCategory[categoryId] ?? 0) + exp.amount;
+
+      if (!byMonthByCategory[categoryId]) {
+        byMonthByCategory[categoryId] = Object.fromEntries(
+          months.map((m) => [m, 0]),
+        );
+      }
+      byMonthByCategory[categoryId][exp.month] =
+        (byMonthByCategory[categoryId][exp.month] ?? 0) + exp.amount;
+    }
+
+    const topCategories = Object.entries(totalsByCategory)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, limit);
+
+    const series = topCategories.map(([categoryId, total]) => ({
+      categoryId,
+      total,
+      points: months.map((month) => ({
+        month,
+        total: byMonthByCategory[categoryId]?.[month] ?? 0,
+      })),
+    }));
+
+    return { months, series };
+  }, [currentMonthKey, lookback, limit]);
+}
+
+/**
+ * Compute spend distribution by weekday for a given month.
+ *
+ * @param {string} month
+ * @returns {Array<{ day: number, total: number, count: number }>|undefined}
+ */
+export function useWeekdaySpendDistribution(month) {
+  return useLiveQuery(async () => {
+    const expenses = /** @type {Expense[]} */ (
+      await typedDb.expenses.where("month").equals(month).toArray()
+    );
+
+    const days = Array.from({ length: 7 }, (_, day) => ({
+      day,
+      total: 0,
+      count: 0,
+    }));
+
+    for (const exp of expenses) {
+      const date = new Date(exp.createdAt);
+      if (Number.isNaN(date.getTime())) continue;
+      const dayIndex = date.getDay();
+      days[dayIndex].total += exp.amount;
+      days[dayIndex].count += 1;
+    }
+
+    return days;
+  }, [month]);
+}
+
+/**
+ * Compute global and category-level budget variance for the selected month.
+ *
+ * @param {string} month
+ * @param {number|null|undefined} monthlyBudget
+ * @param {Record<string, number>|null|undefined} categoryBudgets
+ * @returns {{
+ *   global: { budget: number, spent: number, variance: number, pct: number } | null,
+ *   categories: Array<{ categoryId: string, budget: number, spent: number, variance: number, pct: number }>
+ * }|undefined}
+ */
+export function useBudgetVariance(month, monthlyBudget, categoryBudgets) {
+  return useLiveQuery(async () => {
+    const expenses = /** @type {Expense[]} */ (
+      await typedDb.expenses.where("month").equals(month).toArray()
+    );
+
+    const spentByCategory = /** @type {Record<string, number>} */ ({});
+    let totalSpent = 0;
+
+    for (const exp of expenses) {
+      totalSpent += exp.amount;
+      const categoryId = exp.category || "other";
+      spentByCategory[categoryId] =
+        (spentByCategory[categoryId] ?? 0) + exp.amount;
+    }
+
+    const categoryRows = Object.entries(categoryBudgets || {})
+      .filter(([, value]) => Number(value) > 0)
+      .map(([categoryId, budget]) => {
+        const numericBudget = Number(budget);
+        const spent = spentByCategory[categoryId] ?? 0;
+        const variance = numericBudget - spent;
+        const pct = numericBudget > 0 ? (spent / numericBudget) * 100 : 0;
+        return {
+          categoryId,
+          budget: numericBudget,
+          spent,
+          variance,
+          pct,
+        };
+      })
+      .sort((a, b) => b.pct - a.pct);
+
+    const global =
+      monthlyBudget && Number(monthlyBudget) > 0
+        ? {
+            budget: Number(monthlyBudget),
+            spent: totalSpent,
+            variance: Number(monthlyBudget) - totalSpent,
+            pct: (totalSpent / Number(monthlyBudget)) * 100,
+          }
+        : null;
+
+    return {
+      global,
+      categories: categoryRows,
+    };
+  }, [month, monthlyBudget, categoryBudgets]);
+}
+
+/**
+ * Detect unusual spending patterns for the selected month.
+ *
+ * @param {string} month
+ * @param {number} lookback
+ * @returns {{
+ *   monthly: { kind: "spike" | "drop", current: number, baseline: number, changePct: number } | null,
+ *   categories: Array<{ categoryId: string, current: number, baseline: number, changePct: number }>
+ * }|undefined}
+ */
+export function useSpendingAnomalies(month, lookback = 6) {
+  return useLiveQuery(async () => {
+    const months = [];
+    const [baseYear, baseMonth] = month.split("-").map(Number);
+
+    for (let i = lookback - 1; i >= 0; i--) {
+      const d = new Date(baseYear, baseMonth - 1 - i, 1);
+      months.push(toMonthKey(d));
+    }
+
+    const expenses = /** @type {Expense[]} */ (
+      await typedDb.expenses.where("month").anyOf(months).toArray()
+    );
+
+    const monthlyTotals = Object.fromEntries(months.map((m) => [m, 0]));
+    const currentByCategory = /** @type {Record<string, number>} */ ({});
+    const previousByCategoryMonth =
+      /** @type {Record<string, Record<string, number>>} */ ({});
+
+    for (const exp of expenses) {
+      monthlyTotals[exp.month] = (monthlyTotals[exp.month] ?? 0) + exp.amount;
+      const categoryId = exp.category || "other";
+
+      if (exp.month === month) {
+        currentByCategory[categoryId] =
+          (currentByCategory[categoryId] ?? 0) + exp.amount;
+      } else {
+        if (!previousByCategoryMonth[categoryId]) {
+          previousByCategoryMonth[categoryId] = {};
+        }
+        previousByCategoryMonth[categoryId][exp.month] =
+          (previousByCategoryMonth[categoryId][exp.month] ?? 0) + exp.amount;
+      }
+    }
+
+    const currentTotal = monthlyTotals[month] ?? 0;
+    const previousTotals = months
+      .filter((m) => m !== month)
+      .map((m) => monthlyTotals[m] ?? 0)
+      .filter((value) => value > 0);
+
+    let monthly = null;
+    if (previousTotals.length >= 2 && currentTotal > 0) {
+      const baseline =
+        previousTotals.reduce((sum, value) => sum + value, 0) /
+        previousTotals.length;
+      if (baseline > 0) {
+        const changePct = ((currentTotal - baseline) / baseline) * 100;
+        if (changePct >= 35) {
+          monthly = {
+            kind: /** @type {"spike"} */ ("spike"),
+            current: currentTotal,
+            baseline,
+            changePct,
+          };
+        } else if (changePct <= -30) {
+          monthly = {
+            kind: /** @type {"drop"} */ ("drop"),
+            current: currentTotal,
+            baseline,
+            changePct,
+          };
+        }
+      }
+    }
+
+    const categories = Object.entries(currentByCategory)
+      .map(([categoryId, current]) => {
+        const history = Object.values(
+          previousByCategoryMonth[categoryId] ?? {},
+        ).filter((value) => value > 0);
+        if (history.length < 2) return null;
+
+        const baseline =
+          history.reduce((sum, value) => sum + value, 0) / history.length;
+        if (baseline <= 0) return null;
+        const changePct = ((current - baseline) / baseline) * 100;
+        if (changePct < 50) return null;
+
+        return {
+          categoryId,
+          current,
+          baseline,
+          changePct,
+        };
+      })
+      .filter((row) => row !== null)
+      .sort((a, b) => b.changePct - a.changePct)
+      .slice(0, 3);
+
+    return {
+      monthly,
+      categories,
+    };
+  }, [month, lookback]);
+}
+
+/**
  * Detect potentially recurring expenses by finding names that appear
  * in at least `minMonths` different months.
  *
@@ -314,10 +682,13 @@ export function useMonthlyTrend(currentMonthKey, lookback = 6) {
  */
 export function useRecurringExpenses(minMonths = 2) {
   return useLiveQuery(async () => {
-    const all = await db.expenses.orderBy("month").toArray();
+    const all = /** @type {Expense[]} */ (
+      await typedDb.expenses.orderBy("month").toArray()
+    );
 
     // Group by normalised name
-    const nameMap = {};
+    const nameMap =
+      /** @type {Record<string, { name: string, months: string[], amounts: number[] }>} */ ({});
     for (const exp of all) {
       const key = exp.name.toLowerCase().trim();
       if (!nameMap[key]) {
@@ -335,8 +706,95 @@ export function useRecurringExpenses(minMonths = 2) {
         name: g.name,
         months: g.months.sort(),
         amounts: g.amounts,
-        avgAmount: g.amounts.reduce((s, a) => s + a, 0) / g.amounts.length,
+        avgAmount:
+          g.amounts.reduce(
+            (/** @type {number} */ s, /** @type {number} */ a) => s + a,
+            0,
+          ) / g.amounts.length,
       }))
       .sort((a, b) => b.months.length - a.months.length);
   });
+}
+
+/**
+ * Fetch all recurring templates.
+ *
+ * @returns {RecurringTemplate[]|undefined}
+ */
+export function useRecurringTemplates() {
+  return useLiveQuery(() =>
+    typedDb.recurring.orderBy("createdAt").reverse().toArray(),
+  );
+}
+
+/**
+ * Returns stable mutation helpers for recurring templates.
+ */
+export function useRecurringTemplateMutations() {
+  const createRecurringTemplate = useCallback(
+    async (
+      /** @type {{ name: string, amount: number, category?: string, startMonth?: string }} */ data,
+    ) => {
+      const now = new Date().toISOString();
+      const template = {
+        id: uuidv4(),
+        name: data.name.trim(),
+        amount: Number(data.amount),
+        category: data.category ?? "",
+        frequency: "monthly",
+        startMonth: data.startMonth ?? currentMonth(),
+        enabled: true,
+        lastGeneratedMonth: null,
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      await typedDb.recurring.add(template);
+      return template.id;
+    },
+    [],
+  );
+
+  const updateRecurringTemplate = useCallback(
+    async (
+      /** @type {string} */ id,
+      /** @type {Partial<RecurringTemplate>} */ changes,
+    ) => {
+      const safeChanges = { ...changes, updatedAt: new Date().toISOString() };
+      delete safeChanges.id;
+      delete safeChanges.createdAt;
+      if (safeChanges.amount !== undefined) {
+        safeChanges.amount = Number(safeChanges.amount);
+      }
+      if (safeChanges.name !== undefined) {
+        safeChanges.name = safeChanges.name.trim();
+      }
+      return typedDb.recurring.update(id, safeChanges);
+    },
+    [],
+  );
+
+  const deleteRecurringTemplate = useCallback(
+    async (/** @type {string} */ id) => {
+      await typedDb.recurring.delete(id);
+    },
+    [],
+  );
+
+  const toggleRecurringTemplate = useCallback(
+    async (/** @type {string} */ id, /** @type {boolean} */ enabled) => {
+      return typedDb.recurring.update(id, {
+        enabled,
+        updatedAt: new Date().toISOString(),
+      });
+    },
+    [],
+  );
+
+  return {
+    createRecurringTemplate,
+    updateRecurringTemplate,
+    deleteRecurringTemplate,
+    toggleRecurringTemplate,
+  };
 }

@@ -9,13 +9,26 @@
 
 import { useCallback, useRef, useState } from "react"
 import { db } from "../../db/db"
-import { useAllSettings, useSettingMutation } from "../../hooks/useExpenses"
+import {
+  useAllSettings,
+  useCategoryBudgetMutations,
+  useRecurringTemplateMutations,
+  useRecurringTemplates,
+  useSettingMutation,
+} from "../../hooks/useExpenses"
 import {
   exportToCSV,
   importData,
   previewImport
 } from "../../utils/exportImport"
-import { formatCurrency } from "../../utils/formatters"
+import {
+  CATEGORIES,
+  currentMonth,
+  formatCurrency,
+  getCategoryEmoji,
+  getCategoryLabel,
+} from "../../utils/formatters"
+import { syncRecurringExpensesToMonth } from "../../utils/recurring"
 import {
   Badge,
   ConfirmDialog,
@@ -25,6 +38,36 @@ import {
   showToast,
   Skeleton,
 } from "../ui/index"
+
+/**
+ * @typedef {{
+ *   currency?: string,
+ *   monthlyBudget?: number | null,
+ *   categoryBudgets?: Record<string, number>,
+ *   theme?: string,
+ * }} AppSettings
+ */
+
+/**
+ * @typedef {{
+ *   format?: string,
+ *   meta: { exportedAt?: string | null, schemaVersion?: number } | null,
+ *   expenseCount: number,
+ *   settingCount: number,
+ *   valid: boolean,
+ *   error: string | null,
+ *   skippedCount?: number,
+ *   sampleRows?: Array<{ name: string, amount: number, category?: string, month?: string, createdAt?: string }>,
+ *   warnings?: string[],
+ * }} ImportPreview
+ */
+
+const typedDb = /** @type {any} */ (db)
+
+/** @param {unknown} error */
+function getErrorMessage(error) {
+  return error instanceof Error ? error.message : String(error)
+}
 
 // ─── Currency options ──────────────────────────────────────────────────────────
 
@@ -43,10 +86,11 @@ const CURRENCIES = [
 
 // ─── Section wrapper ───────────────────────────────────────────────────────────
 
+/** @param {{ title: string, children: import("react").ReactNode }} props */
 function Section({ title, children }) {
   return (
     <div className="space-y-3">
-      <h2 className="text-[11px] font-semibold text-[#444] uppercase tracking-widest px-0">
+      <h2 className="text-[11px] font-semibold text-[#6a6a6a] uppercase tracking-widest px-0">
         {title}
       </h2>
       <div className="space-y-2">{children}</div>
@@ -56,6 +100,7 @@ function Section({ title, children }) {
 
 // ─── Settings row ──────────────────────────────────────────────────────────────
 
+/** @param {{ label: string, description?: string, children: import("react").ReactNode, danger?: boolean }} props */
 function SettingRow({ label, description, children, danger = false }) {
   return (
     <div
@@ -76,7 +121,7 @@ function SettingRow({ label, description, children, danger = false }) {
           {label}
         </div>
         {description && (
-          <div className="text-[11px] text-[#3a3a3a] mt-0.5 leading-relaxed">
+          <div className="text-[11px] text-[#666] mt-0.5 leading-relaxed">
             {description}
           </div>
         )}
@@ -88,6 +133,7 @@ function SettingRow({ label, description, children, danger = false }) {
 
 // ─── Toggle switch ─────────────────────────────────────────────────────────────
 
+/** @param {{ checked: boolean, onChange: (value: boolean) => void, disabled?: boolean }} props */
 function Toggle({ checked, onChange, disabled = false }) {
   return (
     <button
@@ -113,8 +159,62 @@ function Toggle({ checked, onChange, disabled = false }) {
   );
 }
 
+// ─── Nav row (drill-down to sub-screen) ───────────────────────────────────────
+
+/** @param {{ label: string, description?: string, badge?: string | number | null, onClick: () => void }} props */
+function SettingNavRow({ label, description, badge, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      className="w-full flex items-center justify-between gap-4 px-4 py-3.5 rounded-xl border bg-[#0d0d0d] border-[#1a1a1a] hover:border-[#222] transition-colors text-left"
+    >
+      <div className="flex-1 min-w-0">
+        <div className="text-[13px] font-medium text-[#ddd] leading-snug">{label}</div>
+        {description && (
+          <div className="text-[11px] text-[#666] mt-0.5 leading-relaxed">{description}</div>
+        )}
+      </div>
+      <div className="shrink-0 flex items-center gap-2">
+        {badge != null && (
+          <span className="text-[11px] tabular-nums text-[#7a7a7a]">{badge}</span>
+        )}
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <path d="M5 3l4 4-4 4" stroke="#3a3a3a" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </div>
+    </button>
+  );
+}
+
+// ─── Sub-screen header ─────────────────────────────────────────────────────────
+
+/** @param {{ title: string, onBack: () => void }} props */
+function SubScreenHeader({ title, onBack }) {
+  return (
+    <div className="flex items-center gap-3 mb-2">
+      <button
+        onClick={onBack}
+        className="w-8 h-8 rounded-xl bg-[#0d0d0d] border border-[#1a1a1a] flex items-center justify-center text-[#888] hover:text-white hover:border-[#222] transition-colors"
+      >
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <path d="M9 3L5 7l4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+      <h2 className="text-[15px] font-semibold text-white">{title}</h2>
+    </div>
+  );
+}
+
 // ─── Import preview modal ──────────────────────────────────────────────────────
 
+/** @param {{
+ *   open: boolean,
+ *   onClose: () => void,
+ *   preview: ImportPreview | null,
+ *   onConfirmMerge: () => void,
+ *   onConfirmReplace: () => void,
+ *   loading: false | "merge" | "replace",
+ * }} props */
 function ImportPreviewModal({
   open,
   onClose,
@@ -132,27 +232,27 @@ function ImportPreviewModal({
           {/* File summary */}
           <div className="bg-[#0d0d0d] border border-[#1a1a1a] rounded-xl p-4 space-y-2">
             <div className="flex justify-between items-center">
-              <span className="text-[12px] text-[#555]">Format</span>
+              <span className="text-[12px] text-[#7a7a7a]">Format</span>
               <Badge variant="muted" size="xs">
                 {(preview.format || "unknown").toUpperCase()}
               </Badge>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-[12px] text-[#555]">Expenses</span>
+              <span className="text-[12px] text-[#7a7a7a]">Expenses</span>
               <span className="text-[13px] font-semibold text-white tabular-nums">
                 {preview.expenseCount}
               </span>
             </div>
-            {preview.skippedCount > 0 ? (
+            {(preview.skippedCount ?? 0) > 0 ? (
               <div className="flex justify-between items-center">
-                <span className="text-[12px] text-[#555]">Skipped rows</span>
+                <span className="text-[12px] text-[#7a7a7a]">Skipped rows</span>
                 <span className="text-[12px] text-amber-400 tabular-nums">
                   {preview.skippedCount}
                 </span>
               </div>
             ) : null}
             <div className="flex justify-between items-center">
-              <span className="text-[12px] text-[#555]">Exported at</span>
+              <span className="text-[12px] text-[#7a7a7a]">Exported at</span>
               <span className="text-[12px] text-[#888] tabular-nums">
                 {preview.meta?.exportedAt
                   ? new Date(preview.meta.exportedAt).toLocaleDateString(
@@ -167,7 +267,7 @@ function ImportPreviewModal({
               </span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-[12px] text-[#555]">Schema version</span>
+              <span className="text-[12px] text-[#7a7a7a]">Schema version</span>
               <Badge variant="muted" size="xs">
                 {preview.meta?.schemaVersion ? `v${preview.meta.schemaVersion}` : "—"}
               </Badge>
@@ -186,7 +286,7 @@ function ImportPreviewModal({
 
           {preview.sampleRows?.length ? (
             <div className="bg-[#0d0d0d] border border-[#1a1a1a] rounded-xl p-3 space-y-2">
-              <p className="text-[11px] uppercase tracking-wider text-[#555]">
+              <p className="text-[11px] uppercase tracking-wider text-[#7a7a7a]">
                 Preview rows
               </p>
               <div className="space-y-1">
@@ -203,14 +303,14 @@ function ImportPreviewModal({
             </div>
           ) : null}
 
-          <p className="text-[12px] text-[#555] leading-relaxed">
+          <p className="text-[12px] text-[#7a7a7a] leading-relaxed">
             Choose how to import this data:
           </p>
 
           <div className="space-y-2">
             <button
               onClick={onConfirmMerge}
-              disabled={loading}
+              disabled={Boolean(loading)}
               className="
                 w-full h-10 rounded-xl text-[13px] font-medium
                 bg-[#1a1a1a] border border-[#222] text-[#ccc]
@@ -248,7 +348,7 @@ function ImportPreviewModal({
 
             <button
               onClick={onConfirmReplace}
-              disabled={loading}
+              disabled={Boolean(loading)}
               className="
                 w-full h-10 rounded-xl text-[13px] font-medium
                 bg-red-500/10 border border-red-500/20 text-red-400
@@ -307,7 +407,7 @@ function ImportPreviewModal({
           <p className="text-[14px] font-semibold text-white mb-2">
             Invalid file
           </p>
-          <p className="text-[12px] text-[#555] leading-relaxed">
+          <p className="text-[12px] text-[#7a7a7a] leading-relaxed">
             {preview.error}
           </p>
           <button
@@ -324,6 +424,7 @@ function ImportPreviewModal({
 
 // ─── Budget input ──────────────────────────────────────────────────────────────
 
+/** @param {{ currentBudget?: number | null, currency: string, onSave: (value: number | null) => Promise<void> }} props */
 function BudgetInput({ currentBudget, currency, onSave }) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState("");
@@ -352,6 +453,7 @@ function BudgetInput({ currentBudget, currency, onSave }) {
   }, [value, onSave]);
 
   const handleKeyDown = useCallback(
+    /** @param {import("react").KeyboardEvent<HTMLInputElement>} e */
     (e) => {
       if (e.key === "Enter") handleSave();
       if (e.key === "Escape") setEditing(false);
@@ -363,7 +465,7 @@ function BudgetInput({ currentBudget, currency, onSave }) {
     return (
       <div className="flex items-center gap-1.5">
         <div className="relative">
-          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[12px] text-[#444] pointer-events-none">
+          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[12px] text-[#6a6a6a] pointer-events-none">
             {currencySymbol}
           </span>
           <input
@@ -397,7 +499,7 @@ function BudgetInput({ currentBudget, currency, onSave }) {
         </button>
         <button
           onClick={() => setEditing(false)}
-          className="w-7 h-7 rounded-lg text-[#555] hover:text-[#888] hover:bg-[#1a1a1a] flex items-center justify-center transition-colors"
+          className="w-7 h-7 rounded-lg text-[#7a7a7a] hover:text-[#888] hover:bg-[#1a1a1a] flex items-center justify-center transition-colors"
         >
           <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
             <path
@@ -443,26 +545,391 @@ function BudgetInput({ currentBudget, currency, onSave }) {
   );
 }
 
+/** @param {{
+ *   currency: string,
+ *   budgets: Record<string, number>,
+ *   onSetBudget: (categoryId: string, amount: number) => Promise<void>,
+ *   onClearBudget: (categoryId: string) => Promise<void>,
+ * }} props */
+function CategoryBudgetsEditor({
+  currency,
+  budgets,
+  onSetBudget,
+  onClearBudget,
+}) {
+  /** @type {[Record<string, string>, import("react").Dispatch<import("react").SetStateAction<Record<string, string>>>]} */
+  const [drafts, setDrafts] = useState({});
+  const [saving, setSaving] = useState("");
+
+  const currencySymbol =
+    CURRENCIES.find((c) => c.code === currency)?.symbol ?? currency;
+
+  const handleSave = useCallback(
+    /** @param {string} categoryId */
+    async (categoryId) => {
+      const draftValue = String(drafts[categoryId] ?? "").trim();
+      const parsed = Number(draftValue.replace(/,/g, ""));
+
+      if (!draftValue) {
+        await onClearBudget(categoryId);
+        showToast({ message: `${getCategoryLabel(categoryId)} budget removed`, type: "info" });
+        return;
+      }
+
+      if (!Number.isFinite(parsed) || parsed <= 0) {
+        showToast({ message: "Enter a valid budget amount", type: "warning" });
+        return;
+      }
+
+      setSaving(categoryId);
+      try {
+        await onSetBudget(categoryId, parsed);
+        setDrafts((prev) => {
+          const next = { ...prev };
+          delete next[categoryId];
+          return next;
+        });
+        showToast({ message: `${getCategoryLabel(categoryId)} budget updated`, type: "success" });
+      } catch (err) {
+        showToast({ message: "Could not save category budget: " + getErrorMessage(err), type: "error" });
+      } finally {
+        setSaving("");
+      }
+    },
+    [drafts, onSetBudget, onClearBudget],
+  );
+
+  const handleClear = useCallback(
+    /** @param {string} categoryId */
+    async (categoryId) => {
+      setSaving(categoryId);
+      try {
+        await onClearBudget(categoryId);
+        setDrafts((prev) => {
+          const next = { ...prev };
+          delete next[categoryId];
+          return next;
+        });
+        showToast({ message: `${getCategoryLabel(categoryId)} budget removed`, type: "info" });
+      } catch (err) {
+        showToast({ message: "Could not remove budget: " + getErrorMessage(err), type: "error" });
+      } finally {
+        setSaving("");
+      }
+    },
+    [onClearBudget],
+  );
+
+  return (
+    <div className="bg-[#0d0d0d] border border-[#1a1a1a] rounded-xl overflow-hidden">
+      <div className="px-4 py-3 border-b border-[#131313]">
+        <div className="text-[13px] font-medium text-[#ddd]">Category Budgets</div>
+        <div className="text-[11px] text-[#666] mt-0.5">
+          Set monthly limits per category for better control
+        </div>
+      </div>
+
+      <div className="divide-y divide-[#131313]">
+        {CATEGORIES.map((cat) => {
+          const currentValue = budgets?.[cat.id];
+          const displayValue = drafts[cat.id] ?? (currentValue ? String(currentValue) : "");
+          const isSaving = saving === cat.id;
+
+          return (
+            <div key={cat.id} className="px-4 py-2.5 flex items-center gap-2.5">
+              <span className="text-[14px]" aria-hidden>
+                {getCategoryEmoji(cat.id)}
+              </span>
+              <span className="text-[12px] text-[#aaa] w-28 shrink-0 truncate">
+                {getCategoryLabel(cat.id)}
+              </span>
+
+              <div className="relative flex-1 min-w-0">
+                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[11px] text-[#6a6a6a] pointer-events-none">
+                  {currencySymbol}
+                </span>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={displayValue}
+                  onChange={(e) =>
+                    setDrafts((prev) => ({
+                      ...prev,
+                      [cat.id]: e.target.value,
+                    }))
+                  }
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleSave(cat.id);
+                    }
+                  }}
+                  placeholder={currentValue ? String(currentValue) : "No limit"}
+                  className="
+                    w-full bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg
+                    pl-6 pr-2.5 py-1.5 text-[12px] text-white tabular-nums
+                    outline-none
+                  "
+                />
+              </div>
+
+              <button
+                onClick={() => handleSave(cat.id)}
+                disabled={isSaving}
+                className="h-7 px-2 rounded-lg text-[11px] font-medium bg-[#1a1a1a] border border-[#222] text-[#888] hover:text-white hover:border-[#333] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                Save
+              </button>
+
+              <button
+                onClick={() => handleClear(cat.id)}
+                disabled={isSaving || !currentValue}
+                className="h-7 px-2 rounded-lg text-[11px] font-medium bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                Clear
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/** @param {{
+ *   currency: string,
+ *   templates: Array<{ id: string, name: string, amount: number, category: string, startMonth: string, enabled: boolean }>,
+ *   onCreate: (input: { name: string, amount: number, category?: string, startMonth?: string }) => Promise<string>,
+ *   onToggle: (id: string, enabled: boolean) => Promise<number>,
+ *   onDelete: (id: string) => Promise<void>,
+ * }} props */
+function RecurringTemplatesEditor({
+  currency,
+  templates,
+  onCreate,
+  onToggle,
+  onDelete,
+}) {
+  const [name, setName] = useState("");
+  const [amount, setAmount] = useState("");
+  const [category, setCategory] = useState("");
+  const [startMonth, setStartMonth] = useState(currentMonth());
+  const [busyId, setBusyId] = useState("");
+  const [creating, setCreating] = useState(false);
+
+  const handleCreate = useCallback(async () => {
+    const trimmedName = name.trim();
+    const parsedAmount = Number(amount.replace(/,/g, ""));
+
+    if (!trimmedName) {
+      showToast({ message: "Enter a recurring expense name", type: "warning" });
+      return;
+    }
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+      showToast({ message: "Enter a valid recurring amount", type: "warning" });
+      return;
+    }
+
+    setCreating(true);
+    try {
+      await onCreate({
+        name: trimmedName,
+        amount: parsedAmount,
+        category,
+        startMonth,
+      });
+      await syncRecurringExpensesToMonth(currentMonth());
+      setName("");
+      setAmount("");
+      setCategory("");
+      setStartMonth(currentMonth());
+      showToast({ message: "Recurring template created", type: "success" });
+    } catch (err) {
+      showToast({ message: "Could not create recurring template: " + getErrorMessage(err), type: "error" });
+    } finally {
+      setCreating(false);
+    }
+  }, [amount, category, name, onCreate, startMonth]);
+
+  const handleToggle = useCallback(
+    /** @param {string} id @param {boolean} enabled */
+    async (id, enabled) => {
+      setBusyId(id);
+      try {
+        await onToggle(id, enabled);
+        if (enabled) {
+          await syncRecurringExpensesToMonth(currentMonth());
+        }
+      } catch (err) {
+        showToast({ message: "Could not update recurring template: " + getErrorMessage(err), type: "error" });
+      } finally {
+        setBusyId("");
+      }
+    },
+    [onToggle],
+  );
+
+  const handleDelete = useCallback(
+    /** @param {string} id */
+    async (id) => {
+      setBusyId(id);
+      try {
+        await onDelete(id);
+        showToast({ message: "Recurring template deleted", type: "info" });
+      } catch (err) {
+        showToast({ message: "Could not delete recurring template: " + getErrorMessage(err), type: "error" });
+      } finally {
+        setBusyId("");
+      }
+    },
+    [onDelete],
+  );
+
+  return (
+    <div className="bg-[#0d0d0d] border border-[#1a1a1a] rounded-xl overflow-hidden">
+      <div className="px-4 py-3 border-b border-[#131313]">
+        <div className="text-[13px] font-medium text-[#ddd]">Recurring Expenses</div>
+        <div className="text-[11px] text-[#666] mt-0.5">
+          Auto-add monthly expenses like rent, subscriptions, and bills
+        </div>
+      </div>
+
+      <div className="p-4 space-y-3 border-b border-[#131313]">
+        <div className="grid grid-cols-1 gap-2">
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Name"
+            className="w-full bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg px-3 py-2 text-[12px] text-white outline-none"
+          />
+          <div className="grid grid-cols-[1fr_1fr] gap-2">
+            <input
+              type="text"
+              inputMode="decimal"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder={`Amount (${currency})`}
+              className="w-full bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg px-3 py-2 text-[12px] text-white outline-none"
+            />
+            <input
+              type="month"
+              value={startMonth}
+              onChange={(e) => setStartMonth(e.target.value)}
+              className="w-full bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg px-3 py-2 text-[12px] text-white outline-none"
+            />
+          </div>
+          <div className="flex gap-2 overflow-x-auto scrollbar-none">
+            <button
+              type="button"
+              onClick={() => setCategory("")}
+              className={`px-2.5 py-1 rounded-lg text-[11px] border whitespace-nowrap ${category === "" ? "bg-[#6bbf4e]/15 text-[#6bbf4e] border-[#6bbf4e]/30" : "text-[#7a7a7a] border-[#1f1f1f]"}`}
+            >
+              No category
+            </button>
+            {CATEGORIES.map((cat) => (
+              <button
+                key={cat.id}
+                type="button"
+                onClick={() => setCategory(cat.id)}
+                className={`px-2.5 py-1 rounded-lg text-[11px] border whitespace-nowrap ${category === cat.id ? "bg-[#6bbf4e]/15 text-[#6bbf4e] border-[#6bbf4e]/30" : "text-[#7a7a7a] border-[#1f1f1f]"}`}
+              >
+                {cat.emoji} {cat.label}
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={handleCreate}
+            disabled={creating}
+            className="h-9 px-3 rounded-lg text-[12px] font-medium bg-[#6bbf4e] text-[#17311a] disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {creating ? "Creating…" : "Add recurring template"}
+          </button>
+        </div>
+      </div>
+
+      <div className="divide-y divide-[#131313]">
+        {templates.length === 0 ? (
+          <div className="px-4 py-4 text-[12px] text-[#6a6a6a]">
+            No recurring templates yet.
+          </div>
+        ) : (
+          templates.map((template) => (
+            <div key={template.id} className="px-4 py-3 flex items-center gap-3">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-[13px] text-[#ddd] font-medium truncate">{template.name}</span>
+                  <span className="text-[10px] uppercase tracking-wide text-[#6bbf4e] bg-[#6bbf4e]/10 border border-[#6bbf4e]/20 px-1.5 py-0.5 rounded">
+                    Monthly
+                  </span>
+                </div>
+                <div className="text-[11px] text-[#6a6a6a] mt-0.5">
+                  {formatCurrency(template.amount, currency)}
+                  {template.category ? ` · ${getCategoryLabel(template.category)}` : ""}
+                  {` · from ${template.startMonth}`}
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => handleToggle(template.id, !template.enabled)}
+                disabled={busyId === template.id}
+                className={`h-7 px-2 rounded-lg text-[11px] font-medium border ${template.enabled ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" : "bg-[#1a1a1a] border-[#222] text-[#888]"}`}
+              >
+                {template.enabled ? "On" : "Off"}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleDelete(template.id)}
+                disabled={busyId === template.id}
+                className="h-7 px-2 rounded-lg text-[11px] font-medium bg-red-500/10 border border-red-500/20 text-red-400"
+              >
+                Delete
+              </button>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Component ─────────────────────────────────────────────────────────────
 
 export default function SettingsView() {
+  /** @type {AppSettings | undefined} */
   const settings = useAllSettings();
   const setSetting = useSettingMutation();
+  const { setCategoryBudget, clearCategoryBudget } = useCategoryBudgetMutations();
+  const recurringTemplates = useRecurringTemplates() ?? [];
+  const {
+    createRecurringTemplate,
+    toggleRecurringTemplate,
+    deleteRecurringTemplate,
+  } = useRecurringTemplateMutations();
 
   // ── Export state ──────────────────────────────────────────────────────────
   const [exportingCSV, setExportingCSV] = useState(false);
   const [exportingJSON, setExportingJSON] = useState(false);
 
   // ── Import state ──────────────────────────────────────────────────────────
-  const [importPreview, setImportPreview] = useState(null);
+  const [importPreview, setImportPreview] = useState(/** @type {ImportPreview | null} */ (null));
   const [importModalOpen, setImportModalOpen] = useState(false);
-  const [importLoading, setImportLoading] = useState(false); // "merge"|"replace"|false
-  const [pendingFile, setPendingFile] = useState(null);
-  const fileInputRef = useRef(null);
+  const [importLoading, setImportLoading] = useState(/** @type {false | "merge" | "replace"} */ (false)); // "merge"|"replace"|false
+  const [pendingFile, setPendingFile] = useState(/** @type {File | null} */ (null));
+  const fileInputRef = useRef(/** @type {HTMLInputElement | null} */ (null));
 
   // ── Danger zone state ─────────────────────────────────────────────────────
   const [confirmClear, setConfirmClear] = useState(false);
   const [clearing, setClearing] = useState(false);
+  const [confirmClearRecurring, setConfirmClearRecurring] = useState(false);
+  const [clearingRecurring, setClearingRecurring] = useState(false);
+
+  // ── Sub-screen navigation ──────────────────────────────────────────────────
+  /** @type {[null | "category-budgets" | "recurring", import("react").Dispatch<import("react").SetStateAction<null | "category-budgets" | "recurring">>]} */
+  const [subscreen, setSubscreen] = useState(/** @type {null | "category-budgets" | "recurring"} */ (null));
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
@@ -475,7 +942,7 @@ export default function SettingsView() {
         type: "success",
       });
     } catch (err) {
-      showToast({ message: "Export failed: " + err.message, type: "error" });
+      showToast({ message: "Export failed: " + getErrorMessage(err), type: "error" });
     } finally {
       setExportingCSV(false);
     }
@@ -496,7 +963,7 @@ export default function SettingsView() {
   //   }
   // }, []);
 
-  const handleFileSelect = useCallback(async (e) => {
+  const handleFileSelect = useCallback(async (/** @type {import("react").ChangeEvent<HTMLInputElement>} */ e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -510,6 +977,7 @@ export default function SettingsView() {
   }, []);
 
   const handleImport = useCallback(
+    /** @param {"merge" | "replace"} mode */
     async (mode) => {
       if (!pendingFile) return;
 
@@ -533,7 +1001,7 @@ export default function SettingsView() {
         setPendingFile(null);
         setImportPreview(null);
       } catch (err) {
-        showToast({ message: "Import failed: " + err.message, type: "error" });
+        showToast({ message: "Import failed: " + getErrorMessage(err), type: "error" });
       } finally {
         setImportLoading(false);
       }
@@ -541,17 +1009,39 @@ export default function SettingsView() {
     [pendingFile],
   );
 
+  const handleClearRecurringExpenses = useCallback(async () => {
+    setClearingRecurring(true);
+    try {
+      await typedDb.transaction("rw", typedDb.expenses, typedDb.recurring, async () => {
+        const all = await typedDb.expenses.toArray();
+        const recurringIds = all
+          .filter((/** @type {any} */ e) => typeof e.recurringId === "string" && e.recurringId)
+          .map((/** @type {any} */ e) => e.id);
+        if (recurringIds.length > 0) {
+          await typedDb.expenses.bulkDelete(recurringIds);
+        }
+        await typedDb.recurring.clear();
+      });
+      showToast({ message: "Recurring templates and generated expenses cleared", type: "info" });
+      setConfirmClearRecurring(false);
+    } catch (err) {
+      showToast({ message: "Failed to clear recurring data: " + getErrorMessage(err), type: "error" });
+    } finally {
+      setClearingRecurring(false);
+    }
+  }, []);
+
   const handleClearAll = useCallback(async () => {
     setClearing(true);
     try {
-      await db.transaction("rw", db.expenses, async () => {
-        await db.expenses.clear();
+      await typedDb.transaction("rw", typedDb.expenses, async () => {
+        await typedDb.expenses.clear();
       });
       showToast({ message: "All expenses deleted", type: "info" });
       setConfirmClear(false);
     } catch (err) {
       showToast({
-        message: "Failed to clear data: " + err.message,
+        message: "Failed to clear data: " + getErrorMessage(err),
         type: "error",
       });
     } finally {
@@ -560,6 +1050,7 @@ export default function SettingsView() {
   }, []);
 
   const handleCurrencyChange = useCallback(
+    /** @param {string} code */
     async (code) => {
       await setSetting("currency", code);
       showToast({ message: `Currency set to ${code}`, type: "success" });
@@ -568,6 +1059,7 @@ export default function SettingsView() {
   );
 
   const handleBudgetSave = useCallback(
+    /** @param {number | null} value */
     async (value) => {
       await setSetting("monthlyBudget", value);
     },
@@ -575,6 +1067,7 @@ export default function SettingsView() {
   );
 
   const handleThemeToggle = useCallback(
+    /** @param {boolean} isDark */
     async (isDark) => {
       const theme = isDark ? "dark" : "light";
       await setSetting("theme", theme);
@@ -605,6 +1098,36 @@ export default function SettingsView() {
 
   const isDark = settings.theme !== "light";
 
+  // ── Sub-screen renders (early return) ─────────────────────────────────────
+  if (subscreen === "category-budgets") {
+    return (
+      <div className="space-y-5 pb-10">
+        <SubScreenHeader title="Category Budgets" onBack={() => setSubscreen(null)} />
+        <CategoryBudgetsEditor
+          currency={settings.currency ?? "NGN"}
+          budgets={settings.categoryBudgets ?? {}}
+          onSetBudget={setCategoryBudget}
+          onClearBudget={clearCategoryBudget}
+        />
+      </div>
+    );
+  }
+
+  if (subscreen === "recurring") {
+    return (
+      <div className="space-y-5 pb-10">
+        <SubScreenHeader title="Recurring Expenses" onBack={() => setSubscreen(null)} />
+        <RecurringTemplatesEditor
+          currency={settings.currency ?? "NGN"}
+          templates={recurringTemplates}
+          onCreate={createRecurringTemplate}
+          onToggle={toggleRecurringTemplate}
+          onDelete={deleteRecurringTemplate}
+        />
+      </div>
+    );
+  }
+
   return (
     <>
       <div className="space-y-7 pb-10">
@@ -616,7 +1139,7 @@ export default function SettingsView() {
               <div className="text-[13px] font-medium text-[#ddd]">
                 Currency
               </div>
-              <div className="text-[11px] text-[#3a3a3a] mt-0.5">
+              <div className="text-[11px] text-[#666] mt-0.5">
                 Used for all amount displays
               </div>
             </div>
@@ -636,7 +1159,7 @@ export default function SettingsView() {
                     <span
                       className={`
                         text-[15px] font-bold w-6 text-center tabular-nums shrink-0
-                        ${isSelected ? "text-[#6bbf4e]" : "text-[#333]"}
+                        ${isSelected ? "text-[#6bbf4e]" : "text-[#5e5e5e]"}
                       `}
                     >
                       {c.symbol}
@@ -647,7 +1170,7 @@ export default function SettingsView() {
                       >
                         {c.code}
                       </div>
-                      <div className="text-[10px] text-[#333] truncate">
+                      <div className="text-[10px] text-[#5e5e5e] truncate">
                         {c.label}
                       </div>
                     </div>
@@ -689,6 +1212,22 @@ export default function SettingsView() {
               onSave={handleBudgetSave}
             />
           </SettingRow>
+
+          <SettingNavRow
+            label="Category Budgets"
+            description="Set monthly limits per category"
+            badge={
+              Object.values(settings.categoryBudgets ?? {}).filter((v) => v > 0).length || null
+            }
+            onClick={() => setSubscreen("category-budgets")}
+          />
+
+          <SettingNavRow
+            label="Recurring Expenses"
+            description="Auto-add monthly expenses like subscriptions and bills"
+            badge={recurringTemplates.length || null}
+            onClick={() => setSubscreen("recurring")}
+          />
 
           {/* Dark mode */}
           <SettingRow
@@ -876,21 +1415,21 @@ export default function SettingsView() {
             {/* App details */}
             <div className="px-4 py-4 space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-[12px] text-[#555]">Version</span>
+                <span className="text-[12px] text-[#7a7a7a]">Version</span>
                 <Badge variant="muted" size="xs">
                   1.0.0
                 </Badge>
               </div>
               <div className="h-px bg-[#131313]" />
               <div className="flex items-center justify-between">
-                <span className="text-[12px] text-[#555]">Storage</span>
+                <span className="text-[12px] text-[#7a7a7a]">Storage</span>
                 <span className="text-[12px] text-[#888]">
                   Local · IndexedDB
                 </span>
               </div>
               <div className="h-px bg-[#131313]" />
               <div className="flex items-center justify-between">
-                <span className="text-[12px] text-[#555]">Schema</span>
+                <span className="text-[12px] text-[#7a7a7a]">Schema</span>
                 <Badge variant="muted" size="xs">
                   v1
                 </Badge>
@@ -907,7 +1446,7 @@ export default function SettingsView() {
               <div className="text-[12px] font-medium text-[#888] mb-0.5">
                 Install as App
               </div>
-              <div className="text-[11px] text-[#3a3a3a] leading-relaxed">
+              <div className="text-[11px] text-[#666] leading-relaxed">
                 On iOS: tap the Share button then "Add to Home Screen". On
                 Android: tap the menu and select "Install app".
               </div>
@@ -917,6 +1456,19 @@ export default function SettingsView() {
 
         {/* ── Danger Zone ─────────────────────────────────────────────────── */}
         <Section title="Danger Zone">
+          {/* <SettingRow
+            label="Clear Recurring Data"
+            description="Delete all recurring templates and auto-generated expenses. Manually added expenses are kept."
+            danger
+          >
+            <button
+              onClick={() => setConfirmClearRecurring(true)}
+              className="flex items-center gap-1.5 h-8 px-3 rounded-lg text-[12px] font-medium bg-red-500/10 border border-red-500/15 text-red-400 hover:bg-red-500/20 hover:border-red-500/25 transition-colors"
+            >
+              Clear
+            </button>
+          </SettingRow> */}
+
           <SettingRow
             label="Clear All Expenses"
             description="Permanently delete every expense. This cannot be undone."
@@ -971,6 +1523,18 @@ export default function SettingsView() {
         confirmLabel="Delete Everything"
         confirmVariant="danger"
         loading={clearing}
+      />
+
+      {/* ── Confirm clear recurring ──────────────────────────────────────── */}
+      <ConfirmDialog
+        open={confirmClearRecurring}
+        onClose={() => setConfirmClearRecurring(false)}
+        onConfirm={handleClearRecurringExpenses}
+        title="Clear recurring data?"
+        description="All recurring templates and their auto-generated expenses will be deleted. Expenses you added manually are not affected."
+        confirmLabel="Clear Recurring"
+        confirmVariant="danger"
+        loading={clearingRecurring}
       />
     </>
   );
