@@ -7,24 +7,24 @@
 //   - Export / Import data
 //   - Danger zone: clear all data
 
-import { useState, useRef, useCallback } from "react";
-import { useAllSettings, useSettingMutation } from "../../hooks/useExpenses";
+import { useCallback, useRef, useState } from "react"
+import { db } from "../../db/db"
+import { useAllSettings, useSettingMutation } from "../../hooks/useExpenses"
 import {
-  exportToJSON,
-  importFromJSON,
-  previewImport,
-} from "../../utils/exportImport";
-import { formatCurrency } from "../../utils/formatters";
+  exportToCSV,
+  importData,
+  previewImport
+} from "../../utils/exportImport"
+import { formatCurrency } from "../../utils/formatters"
 import {
+  Badge,
+  ConfirmDialog,
   KudiIcon,
   KudiLogo,
-  ConfirmDialog,
-  showToast,
   Modal,
+  showToast,
   Skeleton,
-  Badge,
-} from "../ui/index";
-import { db } from "../../db/db";
+} from "../ui/index"
 
 // ─── Currency options ──────────────────────────────────────────────────────────
 
@@ -132,11 +132,25 @@ function ImportPreviewModal({
           {/* File summary */}
           <div className="bg-[#0d0d0d] border border-[#1a1a1a] rounded-xl p-4 space-y-2">
             <div className="flex justify-between items-center">
+              <span className="text-[12px] text-[#555]">Format</span>
+              <Badge variant="muted" size="xs">
+                {(preview.format || "unknown").toUpperCase()}
+              </Badge>
+            </div>
+            <div className="flex justify-between items-center">
               <span className="text-[12px] text-[#555]">Expenses</span>
               <span className="text-[13px] font-semibold text-white tabular-nums">
                 {preview.expenseCount}
               </span>
             </div>
+            {preview.skippedCount > 0 ? (
+              <div className="flex justify-between items-center">
+                <span className="text-[12px] text-[#555]">Skipped rows</span>
+                <span className="text-[12px] text-amber-400 tabular-nums">
+                  {preview.skippedCount}
+                </span>
+              </div>
+            ) : null}
             <div className="flex justify-between items-center">
               <span className="text-[12px] text-[#555]">Exported at</span>
               <span className="text-[12px] text-[#888] tabular-nums">
@@ -155,10 +169,39 @@ function ImportPreviewModal({
             <div className="flex justify-between items-center">
               <span className="text-[12px] text-[#555]">Schema version</span>
               <Badge variant="muted" size="xs">
-                v{preview.meta?.schemaVersion}
+                {preview.meta?.schemaVersion ? `v${preview.meta.schemaVersion}` : "—"}
               </Badge>
             </div>
           </div>
+
+          {preview.warnings?.length ? (
+            <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2">
+              {preview.warnings.map((warning) => (
+                <p key={warning} className="text-[12px] text-amber-300 leading-relaxed">
+                  {warning}
+                </p>
+              ))}
+            </div>
+          ) : null}
+
+          {preview.sampleRows?.length ? (
+            <div className="bg-[#0d0d0d] border border-[#1a1a1a] rounded-xl p-3 space-y-2">
+              <p className="text-[11px] uppercase tracking-wider text-[#555]">
+                Preview rows
+              </p>
+              <div className="space-y-1">
+                {preview.sampleRows.map((row, idx) => (
+                  <div
+                    key={`${row.name}-${idx}`}
+                    className="grid grid-cols-[1fr_auto] gap-3 text-[12px]"
+                  >
+                    <span className="text-[#bcbcbc] truncate">{row.name}</span>
+                    <span className="text-[#888] tabular-nums">{row.amount}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
 
           <p className="text-[12px] text-[#555] leading-relaxed">
             Choose how to import this data:
@@ -407,7 +450,8 @@ export default function SettingsView() {
   const setSetting = useSettingMutation();
 
   // ── Export state ──────────────────────────────────────────────────────────
-  const [exporting, setExporting] = useState(false);
+  const [exportingCSV, setExportingCSV] = useState(false);
+  const [exportingJSON, setExportingJSON] = useState(false);
 
   // ── Import state ──────────────────────────────────────────────────────────
   const [importPreview, setImportPreview] = useState(null);
@@ -422,20 +466,35 @@ export default function SettingsView() {
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
-  const handleExport = useCallback(async () => {
-    setExporting(true);
+  const handleExportCSV = useCallback(async () => {
+    setExportingCSV(true);
     try {
-      const { count } = await exportToJSON();
+      const { count } = await exportToCSV();
       showToast({
-        message: `Exported ${count} expense${count !== 1 ? "s" : ""}`,
+        message: `Exported ${count} expense${count !== 1 ? "s" : ""} for Excel`,
         type: "success",
       });
     } catch (err) {
       showToast({ message: "Export failed: " + err.message, type: "error" });
     } finally {
-      setExporting(false);
+      setExportingCSV(false);
     }
   }, []);
+
+  // const handleExportJSON = useCallback(async () => {
+  //   setExportingJSON(true);
+  //   try {
+  //     const { count } = await exportToJSON();
+  //     showToast({
+  //       message: `Exported ${count} expense${count !== 1 ? "s" : ""} backup`,
+  //       type: "success",
+  //     });
+  //   } catch (err) {
+  //     showToast({ message: "Export failed: " + err.message, type: "error" });
+  //   } finally {
+  //     setExportingJSON(false);
+  //   }
+  // }, []);
 
   const handleFileSelect = useCallback(async (e) => {
     const file = e.target.files?.[0];
@@ -456,11 +515,20 @@ export default function SettingsView() {
 
       setImportLoading(mode);
       try {
-        const result = await importFromJSON(pendingFile, mode);
+        const result = await importData(pendingFile, mode);
+        const skippedMessage =
+          result.skipped > 0
+            ? `, ${result.skipped} row${result.skipped !== 1 ? "s" : ""} skipped`
+            : "";
         showToast({
-          message: `Imported ${result.imported} expense${result.imported !== 1 ? "s" : ""} (${mode})`,
+          message:
+            `Imported ${result.imported} expense${result.imported !== 1 ? "s" : ""} (${mode})` +
+            skippedMessage,
           type: "success",
         });
+        if (result.skipped > 0) {
+          showToast({ message: "Some rows were skipped", type: "warning" });
+        }
         setImportModalOpen(false);
         setPendingFile(null);
         setImportPreview(null);
@@ -635,12 +703,12 @@ export default function SettingsView() {
         <Section title="Data">
           {/* Export */}
           <SettingRow
-            label="Export Data"
-            description="Download all expenses as a JSON file — backup or migrate anytime"
+            label="Export for Excel (CSV)"
+            description="Download a spreadsheet-friendly file for Excel or Google Sheets"
           >
             <button
-              onClick={handleExport}
-              disabled={exporting}
+              onClick={handleExportCSV}
+              disabled={exportingCSV}
               className="
                 flex items-center gap-1.5 h-8 px-3 rounded-lg
                 text-[12px] font-medium
@@ -650,7 +718,7 @@ export default function SettingsView() {
                 transition-colors
               "
             >
-              {exporting ? (
+              {exportingCSV ? (
                 <svg
                   width="11"
                   height="11"
@@ -690,14 +758,74 @@ export default function SettingsView() {
                   />
                 </svg>
               )}
-              {exporting ? "Exporting…" : "Export JSON"}
+              {exportingCSV ? "Exporting…" : "Export CSV"}
             </button>
           </SettingRow>
+
+          {/* <SettingRow
+            label="Export backup (JSON)"
+            description="Full backup for exact restore and migration"
+          >
+            <button
+              onClick={handleExportJSON}
+              disabled={exportingJSON}
+              className="
+                flex items-center gap-1.5 h-8 px-3 rounded-lg
+                text-[12px] font-medium
+                bg-[#1a1a1a] border border-[#222] text-[#888]
+                hover:text-white hover:border-[#333]
+                disabled:opacity-40 disabled:cursor-not-allowed
+                transition-colors
+              "
+            >
+              {exportingJSON ? (
+                <svg
+                  width="11"
+                  height="11"
+                  viewBox="0 0 11 11"
+                  fill="none"
+                  className="animate-spin"
+                >
+                  <circle
+                    cx="5.5"
+                    cy="5.5"
+                    r="4"
+                    stroke="currentColor"
+                    strokeWidth="1.4"
+                    strokeOpacity="0.3"
+                  />
+                  <path
+                    d="M9.5 5.5a4 4 0 00-4-4"
+                    stroke="currentColor"
+                    strokeWidth="1.4"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              ) : (
+                <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+                  <path
+                    d="M5.5 1v6M2.5 5l3 3 3-3"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  <path
+                    d="M1 8.5v1a.5.5 0 00.5.5h8a.5.5 0 00.5-.5v-1"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              )}
+              {exportingJSON ? "Exporting…" : "Export JSON"}
+            </button>
+          </SettingRow> */}
 
           {/* Import */}
           <SettingRow
             label="Import Data"
-            description="Restore from a KudiLog JSON export — merge or replace"
+            description="Import a CSV or JSON file, then choose merge or replace"
           >
             <button
               onClick={() => fileInputRef.current?.click()}
@@ -724,13 +852,13 @@ export default function SettingsView() {
                   strokeLinecap="round"
                 />
               </svg>
-              Import JSON
+              Import file
             </button>
             {/* Hidden file input */}
             <input
               ref={fileInputRef}
               type="file"
-              accept=".json,application/json"
+              accept=".json,application/json,.csv,text/csv"
               onChange={handleFileSelect}
               className="sr-only"
               aria-hidden="true"
