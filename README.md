@@ -2,7 +2,7 @@
 
 A fast, local-first Progressive Web App for personal monthly budgeting. Log expenses in seconds, view insights, and own your data — no backend, no accounts, no cost.
 
-![KudiLog](public/icons/icon-192.png)
+![KudiLog](public/icons/kudilog-app-icon.svg)
 
 ---
 
