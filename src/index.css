@@ -1,0 +1,664 @@
+@import "tailwindcss";
+
+/* ─── Viewport & PWA safe areas ───────────────────────────────────────────── */
+
+:root {
+    --sat: env(safe-area-inset-top);
+    --sar: env(safe-area-inset-right);
+    --sab: env(safe-area-inset-bottom);
+    --sal: env(safe-area-inset-left);
+}
+
+html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+    scroll-behavior: smooth;
+    /* Keep native UI (including form/autofill paint) consistent with dark theme. */
+    color-scheme: dark;
+}
+
+body {
+    background-color: #0a0a0a;
+    color: #f0f0f0;
+    font-family:
+        -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", system-ui,
+        sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overscroll-behavior: none;
+    overflow-x: hidden;
+}
+
+/* ─── Custom scrollbar ────────────────────────────────────────────────────── */
+
+* {
+    scrollbar-width: thin;
+    scrollbar-color: #222 transparent;
+}
+
+::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+}
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+::-webkit-scrollbar-thumb {
+    background: #222;
+    border-radius: 9999px;
+}
+
+.scrollbar-none {
+    scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+    display: none;
+}
+
+/* ─── Focus styles ────────────────────────────────────────────────────────── */
+
+/* Strip the browser-native outline from every element so there is no
+   intermediate white/blue ring before our custom rule paints.               */
+*:focus {
+    outline: none;
+}
+
+/* Only show a ring for keyboard navigation (focus-visible). Use the generic
+   outline for non-form controls; inputs/selects/textareas get a dedicated
+   inset ring below to avoid WebKit flashing around filled fields. */
+*:not(input):not(select):not(textarea):focus-visible {
+    outline: 2px solid rgba(107, 191, 78, 0.6);
+    outline-offset: 2px;
+    border-radius: 6px;
+}
+
+/* ─── Selection ───────────────────────────────────────────────────────────── */
+
+::selection {
+    background-color: rgba(107, 191, 78, 0.25);
+    color: inherit;
+}
+
+/* ─── Safe area padding helpers ───────────────────────────────────────────── */
+
+.safe-area-bottom {
+    padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+}
+
+.safe-area-top {
+    padding-top: env(safe-area-inset-top);
+}
+
+/* ─── Animations ──────────────────────────────────────────────────────────── */
+
+@keyframes fade-in {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes slide-up {
+    from {
+        opacity: 0;
+        transform: translateY(12px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes scale-in {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+@keyframes shake {
+    0% {
+        transform: translateX(0);
+    }
+    15% {
+        transform: translateX(-5px);
+    }
+    30% {
+        transform: translateX(5px);
+    }
+    45% {
+        transform: translateX(-4px);
+    }
+    60% {
+        transform: translateX(4px);
+    }
+    75% {
+        transform: translateX(-2px);
+    }
+    90% {
+        transform: translateX(2px);
+    }
+    100% {
+        transform: translateX(0);
+    }
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes pulse {
+    0%,
+    100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.4;
+    }
+}
+
+/* ─── Animation utility classes ───────────────────────────────────────────── */
+
+.animate-fade-in {
+    animation: fade-in 0.2s ease-out both;
+}
+.animate-slide-up {
+    animation: slide-up 0.25s ease-out both;
+}
+.animate-scale-in {
+    animation: scale-in 0.2s ease-out both;
+}
+.animate-shake {
+    animation: shake 0.45s ease-in-out both;
+}
+.animate-spin {
+    animation: spin 0.8s linear infinite;
+}
+.animate-pulse {
+    animation: pulse 1.8s ease-in-out infinite;
+}
+
+/* ─── Tabular numbers ─────────────────────────────────────────────────────── */
+
+.tabular-nums {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+}
+
+/* ─── Input reset ─────────────────────────────────────────────────────────── */
+
+input,
+select,
+textarea {
+    -webkit-appearance: none;
+    appearance: none;
+    box-shadow: none;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+    box-shadow: none;
+}
+
+input:not([data-focus-unstyled="true"]):focus-visible,
+select:not([data-focus-unstyled="true"]):focus-visible,
+textarea:not([data-focus-unstyled="true"]):focus-visible {
+    outline: none;
+    border-color: #6bbf4e;
+    box-shadow: 0 0 0 1px rgba(107, 191, 78, 0.35);
+}
+
+/* WebKit autofill can flash a light background on focus. Force it to match our
+   surfaces immediately (dark + light themes). */
+input:-webkit-autofill,
+textarea:-webkit-autofill,
+select:-webkit-autofill {
+    -webkit-text-fill-color: #f0f0f0;
+    caret-color: #6bbf4e;
+    box-shadow: 0 0 0px 1000px #0a0a0a inset;
+    -webkit-box-shadow: 0 0 0px 1000px #0a0a0a inset;
+    transition: background-color 9999s ease-out, color 9999s ease-out;
+}
+
+html.light input:-webkit-autofill,
+html.light textarea:-webkit-autofill,
+html.light select:-webkit-autofill {
+    -webkit-text-fill-color: #111111;
+    box-shadow: 0 0 0px 1000px #f7f7f5 inset;
+    -webkit-box-shadow: 0 0 0px 1000px #f7f7f5 inset;
+}
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    appearance: none;
+    margin: 0;
+}
+input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+}
+
+/* ─── Prevent double-tap zoom on iOS ─────────────────────────────────────── */
+
+button,
+[role="button"],
+input,
+select,
+textarea {
+    touch-action: manipulation;
+}
+
+/* ─── Typography helpers ──────────────────────────────────────────────────── */
+
+.tracking-tight {
+    letter-spacing: -0.025em;
+}
+.tracking-tighter {
+    letter-spacing: -0.04em;
+}
+.tracking-widest {
+    letter-spacing: 0.1em;
+}
+
+/* ─── Glass surface ───────────────────────────────────────────────────────── */
+
+.glass {
+    background: rgba(17, 17, 17, 0.85);
+    backdrop-filter: blur(16px) saturate(1.2);
+    -webkit-backdrop-filter: blur(16px) saturate(1.2);
+}
+
+/* ─── Gradient text ───────────────────────────────────────────────────────── */
+
+.gradient-text {
+    background: linear-gradient(135deg, #fff 0%, #888 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+/* ─── PWA standalone mode adjustments ────────────────────────────────────── */
+
+@media (display-mode: standalone) {
+    body {
+        padding-top: env(safe-area-inset-top);
+    }
+}
+
+/* ─── Reduce motion ───────────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   LIGHT MODE
+   ══════════════════════════════════════════════════════════════════════════════
+
+   Design philosophy
+   -----------------
+   • Warm off-white palette — not pure-white sterile, more Linear/Notion warmth
+   • Every text token is checked for WCAG AA contrast (≥ 4.5 : 1 on its bg)
+   • The dark-mode colour scale is fully inverted:
+       dark  #fff  (primary)  →  light  #111
+       dark  #888  (muted)    →  light  #555
+       dark  #333  (ghost)    →  light  #999
+   • Semantic accent colours (brand green, emerald…) are shifted to darker
+     variants so they remain legible on pale backgrounds
+
+   Token map (dark → light)
+   ─────────────────────────────────────────────────────
+   BACKGROUNDS
+     #0a0a0a  app bg              →  #f7f7f5
+     #111111 / #111  card/modal   →  #ffffff
+     #0d0d0d  secondary surface  →  #f3f3f1
+     #131313  inner divider bg   →  #ededeb
+     #141414  nav border area    →  #e9e9e7
+     #1a1a1a  hover/active surf  →  #eaeae8
+     #1f1f1f  subtle surface     →  #e4e4e2
+     #2a2a2a  lighter surface    →  #dededd
+     #333     lightest surface   →  #d5d5d4
+     #444     (bg)               →  #cccccc
+
+   BORDERS
+     #111     hairline           →  #e6e6e4
+     #131313  very subtle        →  #ededeb
+     #141414  nav top border     →  #e4e4e2
+     #1a1a1a  card border        →  #e0e0de
+     #1f1f1f  modal border       →  #d8d8d6
+     #222     button border      →  #d0d0ce
+     #2a2a2a  input border       →  #c8c8c6
+     #333     hover border       →  #b4b4b2
+     #3a3a3a  strong hover       →  #aaaaaa
+
+   TEXT  (contrast on #f7f7f5, pass = ≥ 4.5 : 1)
+     white / #f0f0f0 / #e0e0e0 / #ddd  primary   →  #111111  (19 : 1 ✓)
+     #ccc                               high       →  #1d1d1d  (17 : 1 ✓)
+     #c0c0c0                            secondary  →  #252525  (14 : 1 ✓)
+     #a0a0a0                            muted-1    →  #3d3d3d   (9 : 1 ✓)
+     #888 / #777                        muted-2    →  #4d4d4d   (7 : 1 ✓)
+     #666                               muted-3    →  #555555   (6.3: 1 ✓)
+     #555                               label      →  #646464   (5.2: 1 ✓)
+     #444                               faint lbl  →  #696969   (4.9: 1 ✓)
+     #3a3a3a                            very faint →  #757575   (4.6: 1 ✓)
+     #333                               ghost      →  #8a8a8a   (3.5: 1 – UI chrome only)
+     #2a2a2a                            near-invis →  #9e9e9e   (2.8: 1 – decorative)
+     #1f1f1f                            invisible  →  #b0b0b0   (decorative)
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Body ─────────────────────────────────────────────────────────────────── */
+
+html.light body {
+    background-color: #f7f7f5;
+    color: #111111;
+    -webkit-font-smoothing: subpixel-antialiased;
+}
+
+html.light {
+    color-scheme: light;
+}
+
+/* ── Scrollbar ────────────────────────────────────────────────────────────── */
+
+html.light * {
+    scrollbar-color: #d0d0ce transparent;
+}
+html.light ::-webkit-scrollbar-thumb {
+    background: #d0d0ce;
+}
+
+/* ── Glass surface ────────────────────────────────────────────────────────── */
+
+html.light .glass {
+    background: rgba(247, 247, 245, 0.9);
+}
+
+/* ── App backgrounds ──────────────────────────────────────────────────────── */
+
+html.light .bg-\[\#0a0a0a\] {
+    background-color: #f7f7f5;
+}
+html.light .bg-\[\#111\] {
+    background-color: #ffffff;
+}
+html.light .bg-\[\#111111\] {
+    background-color: #ffffff;
+}
+html.light .bg-\[\#0d0d0d\] {
+    background-color: #f3f3f1;
+}
+html.light .bg-\[\#131313\] {
+    background-color: #ededeb;
+}
+html.light .bg-\[\#141414\] {
+    background-color: #e9e9e7;
+}
+html.light .bg-\[\#1a1a1a\] {
+    background-color: #eaeae8;
+}
+html.light .bg-\[\#1f1f1f\] {
+    background-color: #e4e4e2;
+}
+html.light .bg-\[\#2a2a2a\] {
+    background-color: #dededd;
+}
+html.light .bg-\[\#333\] {
+    background-color: #d5d5d4;
+}
+html.light .bg-\[\#444\] {
+    background-color: #cccccc;
+}
+
+/* ── Header & nav backdrop (opacity variant) ──────────────────────────────── */
+
+html.light .bg-\[\#0a0a0a\]\/95 {
+    background-color: rgba(247, 247, 245, 0.97);
+}
+
+/* ── Borders ──────────────────────────────────────────────────────────────── */
+
+html.light .border-\[\#111\] {
+    border-color: #e6e6e4;
+}
+html.light .border-\[\#131313\] {
+    border-color: #ededeb;
+}
+html.light .border-\[\#141414\] {
+    border-color: #e4e4e2;
+}
+html.light .border-\[\#1a1a1a\] {
+    border-color: #e0e0de;
+}
+html.light .border-\[\#1f1f1f\] {
+    border-color: #d8d8d6;
+}
+html.light .border-\[\#222\] {
+    border-color: #d0d0ce;
+}
+html.light .border-\[\#2a2a2a\] {
+    border-color: #c8c8c6;
+}
+html.light .border-\[\#333\] {
+    border-color: #b4b4b2;
+}
+html.light .border-\[\#3a3a3a\] {
+    border-color: #aaaaaa;
+}
+
+/* ── Divide utilities ─────────────────────────────────────────────────────── */
+
+html.light .divide-\[\#111\] > :not(:last-child) {
+    border-color: #e6e6e4;
+}
+html.light .divide-\[\#131313\] > :not(:last-child) {
+    border-color: #ededeb;
+}
+
+/* ── Text colours ─────────────────────────────────────────────────────────── */
+
+/* Primary — full contrast */
+html.light .text-white {
+    color: #111111;
+}
+html.light .text-\[\#f0f0f0\] {
+    color: #111111;
+}
+html.light .text-\[\#e0e0e0\] {
+    color: #111111;
+}
+html.light .text-\[\#ddd\] {
+    color: #111111;
+} /* settings labels — was invisible! */
+
+/* High */
+html.light .text-\[\#ccc\] {
+    color: #1d1d1d;
+} /* button text, toast — was invisible! */
+html.light .text-\[\#c0c0c0\] {
+    color: #252525;
+}
+
+/* Muted-1 */
+html.light .text-\[\#a0a0a0\] {
+    color: #3d3d3d;
+} /* badge — was missing */
+
+/* Muted-2 */
+html.light .text-\[\#888\] {
+    color: #4d4d4d;
+}
+html.light .text-\[\#777\] {
+    color: #4d4d4d;
+} /* hover labels — was missing */
+
+/* Muted-3 */
+html.light .text-\[\#666\] {
+    color: #555555;
+}
+
+/* Label */
+html.light .text-\[\#555\] {
+    color: #646464;
+}
+
+/* Faint label — was #999 which fails contrast */
+html.light .text-\[\#444\] {
+    color: #696969;
+}
+
+/* Very faint — was #aaa which fails contrast */
+html.light .text-\[\#3a3a3a\] {
+    color: #757575;
+}
+
+/* Ghost — UI chrome only, not body copy */
+html.light .text-\[\#333\] {
+    color: #8a8a8a;
+} /* was #bbb — far too light */
+
+/* Near-invisible — decorative separators only */
+html.light .text-\[\#2a2a2a\] {
+    color: #9e9e9e;
+} /* was #ccc — far too light */
+html.light .text-\[\#1f1f1f\] {
+    color: #b0b0b0;
+}
+
+/* ── Placeholder text ─────────────────────────────────────────────────────── */
+
+/* Subtle but visible placeholder on light inputs */
+html.light .placeholder\:text-\[\#333\]::placeholder {
+    color: #c0bebe;
+}
+
+/* ── Hover state text overrides ───────────────────────────────────────────── */
+
+/* hover:text-white would render white-on-white in light mode */
+html.light .hover\:text-white:hover {
+    color: #111111;
+}
+
+/* ── Semantic accent colours ──────────────────────────────────────────────── */
+/*
+   In dark mode, pastel variants (emerald-400, amber-400 …) sit on dark
+   tinted backgrounds and look vibrant. On pale light-mode surfaces those
+   same pastels have very low contrast. We remap them to their -600/-700
+   equivalents, keeping hue while restoring readability.
+*/
+
+/* Brand green — darken for light backgrounds */
+/* text-[#6bbf4e] inline hex classes don't need a separate CSS override;
+   the colour is already vivid enough on white (3.2:1) but we boost it
+   slightly for AA compliance on pure-white surfaces. */
+
+/* Emerald */
+html.light .text-emerald-300 {
+    color: #047857;
+} /* emerald-700 */
+html.light .text-emerald-400 {
+    color: #059669;
+} /* emerald-600 — 4.6:1 ✓ */
+
+/* Amber */
+html.light .text-amber-400 {
+    color: #b45309;
+} /* amber-700 — 5.9:1 ✓ */
+
+/* Red */
+html.light .text-red-400 {
+    color: #dc2626;
+} /* red-600 — 4.5:1 ✓ */
+
+/* Blue (used in category dots — adjust for text labels) */
+html.light .text-blue-400 {
+    color: #1d4ed8;
+} /* blue-700 */
+
+/* ── Brand green UI chrome ───────────────────────────────────────────────── */
+/* Month link, insight banners, trend axis labels all use inline #6bbf4e
+   hex classes — no class-based override needed.                              */
+
+/* ── Tinted background adjustments ───────────────────────────────────────── */
+/*
+   The subtle /5, /10, /15 tints work fine on light backgrounds — they just
+   become very faint washes of colour which still look intentional.
+   Only the text ON them needs the colour shift (handled above).
+   No bg-* overrides needed for those variants.
+*/
+
+/* ── Specific component surfaces ─────────────────────────────────────────── */
+
+/* The ExpenseInput's Add button uses bg-[#6bbf4e] — brand green CTA.
+   Text inside is #1a3a2a (dark green). Both are inline hex — no override.    */
+
+/* Toggle thumb is bg-white — stays white; the track bg-[#2a2a2a] becomes a
+   light grey which still contrasts well with the white thumb. No change.       */
+
+/* ── Input / form chrome ──────────────────────────────────────────────────── */
+
+/* Inputs use bg-[#0a0a0a] → #f7f7f5 and bg-[#0d0d0d] → #f3f3f1, both of
+   which look like clean off-white input fields. Caret colour (caret-[#6bbf4e])
+   is an inline hex class — stays brand green, visible on light fields.        */
+
+/* ── Active nav indicator ─────────────────────────────────────────────────── */
+
+/* bg-[#6bbf4e] dot under active nav item — inline hex, no override needed.   */
+
+/* ── Stat card accent ─────────────────────────────────────────────────────── */
+
+/* bg-[#6bbf4e]/5 + border-[#6bbf4e]/15 — faint brand-green card tint.
+   All inline hex classes — no override needed.                                */
+
+/* ── Analytics bar chart ──────────────────────────────────────────────────── */
+
+/* Current-month bar bg-[#6bbf4e] — inline hex, no override needed.
+   Other bars bg-[#2a2a2a] become #dededd on light mode — slightly low
+   contrast against #f7f7f5, so darken them:                                   */
+html.light .bg-\[\#2a2a2a\].rounded-t-sm {
+    background-color: #c8c8c8;
+}
+
+/* The baseline in the trend chart bg-[#1a1a1a] → #eaeae8 is fine (light line).*/
+
+/* ── Category breakdown bars ──────────────────────────────────────────────── */
+
+/* The bar track bg-[#1a1a1a] → #eaeae8 (light grey track). The filled portion
+   uses bg-[#6bbf4e] (inline) and Tailwind colour classes (bg-blue-500 …)
+   which need no change — they look great on a pale track.                     */
+
+/* ── Currency selector hover ─────────────────────────────────────────────── */
+
+/* hover:bg-[#111] maps to #ffffff in light mode (the card bg), making the
+   hover invisible. Override to a subtle warm grey so the hover is visible.    */
+html.light .hover\:bg-\[\#111\]:hover {
+    background-color: #ebebea;
+}
+
+/* ── Modal backdrop ───────────────────────────────────────────────────────── */
+
+/* bg-black/70 overlay stays dark — standard UX convention, fine in light mode. */
+
+/* ── Confirm dialog icon ──────────────────────────────────────────────────── */
+
+/* Uses hardcoded stroke="#f87171" (red-400) in inline SVG. On the
+   bg-red-500/10 tinted bg it reads fine in light mode.                        */

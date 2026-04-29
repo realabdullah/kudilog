@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 160" width="520" height="160">
+  <!-- Book icon -->
+  <g transform="translate(10, 10)">
+    <!-- Book body -->
+    <rect x="0" y="12" width="110" height="128" rx="10" ry="10" fill="#1a3a2a"/>
+    <!-- Book spine highlight -->
+    <rect x="0" y="12" width="14" height="128" rx="6" ry="6" fill="#15301f"/>
+    <!-- Bookmark -->
+    <polygon points="62,12 82,12 82,50 72,42 62,50" fill="#6bbf4e"/>
+    <!-- White K left stem -->
+    <rect x="24" y="50" width="14" height="52" rx="2" fill="white"/>
+    <!-- Green K diagonal arms -->
+    <polygon points="38,76 68,50 80,50 50,76" fill="#6bbf4e"/>
+    <polygon points="38,76 68,102 80,102 50,76" fill="#6bbf4e"/>
+    <!-- Book lines at bottom -->
+    <rect x="20" y="116" width="50" height="5" rx="2.5" fill="#3a6640" opacity="0.8"/>
+    <rect x="20" y="126" width="38" height="5" rx="2.5" fill="#3a6640" opacity="0.6"/>
+  </g>
+
+  <!-- KudiLog text -->
+  <g transform="translate(140, 10)">
+    <text x="0" y="80" font-family="'Trebuchet MS', 'Segoe UI', sans-serif" font-size="72" font-weight="700" fill="#1a3a2a" letter-spacing="-1">KudiLog</text>
+    <!-- Green dot on i -->
+    <circle cx="224" cy="22" r="7" fill="#6bbf4e"/>
+    <!-- Tagline -->
+    <text x="4" y="112" font-family="'Trebuchet MS', 'Segoe UI', sans-serif" font-size="16" font-weight="500" fill="#6bbf4e" letter-spacing="3">TRACK. UNDERSTAND. GROW.</text>
+  </g>
+</svg>

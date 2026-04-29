@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!-- Book body -->
+  <rect x="2" y="2" width="28" height="28" rx="5" ry="5" fill="#1a3a2a"/>
+  <!-- Spine -->
+  <rect x="2" y="2" width="4" height="28" rx="2" ry="2" fill="#15301f"/>
+  <!-- Bookmark -->
+  <polygon points="16,2 22,2 22,11 19,9 16,11" fill="#6bbf4e"/>
+  <!-- K stem -->
+  <rect x="8" y="9" width="4" height="14" rx="1" fill="white"/>
+  <!-- K arms -->
+  <polygon points="12,16 20,9 23,9 16,16" fill="#6bbf4e"/>
+  <polygon points="12,16 20,23 23,23 16,16" fill="#6bbf4e"/>
+  <!-- Lines -->
+  <rect x="7" y="25" width="12" height="2" rx="1" fill="#3a6640" opacity="0.8"/>
+</svg>

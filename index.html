@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta
+            name="viewport"
+            content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+        />
+
+        <!-- ── Primary Meta ───────────────────────────────────────────────── -->
+        <title>KudiLog – Personal Budget Tracker</title>
+        <meta
+            name="description"
+            content="Fast, local-first personal monthly budgeting. Log expenses in seconds, view insights, own your data."
+        />
+        <meta name="author" content="KudiLog" />
+        <meta name="application-name" content="KudiLog" />
+        <meta name="format-detection" content="telephone=no" />
+
+        <!-- ── Colour scheme ──────────────────────────────────────────────── -->
+        <meta name="color-scheme" content="dark light" />
+        <meta
+            name="theme-color"
+            content="#0a0a0a"
+            media="(prefers-color-scheme: dark)"
+        />
+        <meta
+            name="theme-color"
+            content="#f7f7f5"
+            media="(prefers-color-scheme: light)"
+        />
+
+        <!-- ── Favicons ───────────────────────────────────────────────────── -->
+        <!-- ICO for legacy browsers (IE, old Edge) -->
+        <link rel="icon" href="/favicon.ico" sizes="any" />
+        <!-- SVG for modern browsers — scales perfectly at any size -->
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <!-- PNG fallbacks for browsers that prefer raster -->
+        <link
+            rel="icon"
+            type="image/png"
+            sizes="32x32"
+            href="/icons/favicon-32x32.png"
+        />
+        <link
+            rel="icon"
+            type="image/png"
+            sizes="16x16"
+            href="/icons/favicon-16x16.png"
+        />
+
+        <!-- ── Apple Touch Icons ──────────────────────────────────────────── -->
+        <!-- Default (180×180) — used by most modern iPhones -->
+        <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+        <!-- Size-specific entries let iOS pick the sharpest match -->
+        <link
+            rel="apple-touch-icon"
+            sizes="180x180"
+            href="/icons/apple-touch-icon-180.png"
+        />
+        <link
+            rel="apple-touch-icon"
+            sizes="167x167"
+            href="/icons/apple-touch-icon-167.png"
+        />
+        <link
+            rel="apple-touch-icon"
+            sizes="152x152"
+            href="/icons/apple-touch-icon-152.png"
+        />
+        <link
+            rel="apple-touch-icon"
+            sizes="120x120"
+            href="/icons/apple-touch-icon-120.png"
+        />
+        <link
+            rel="apple-touch-icon"
+            sizes="76x76"
+            href="/icons/apple-touch-icon-76.png"
+        />
+
+        <!-- ── PWA / Web App ──────────────────────────────────────────────── -->
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <!-- black-translucent lets the status bar overlay the app in standalone mode -->
+        <meta
+            name="apple-mobile-web-app-status-bar-style"
+            content="black-translucent"
+        />
+        <meta name="apple-mobile-web-app-title" content="KudiLog" />
+
+        <!-- ── Windows / Edge tiles ───────────────────────────────────────── -->
+        <meta name="msapplication-TileColor" content="#0a0a0a" />
+        <meta name="msapplication-TileImage" content="/icons/icon-144.png" />
+        <meta name="msapplication-config" content="none" />
+        <!-- Square tile sizes for Windows Start / Edge -->
+        <meta
+            name="msapplication-square70x70logo"
+            content="/appstore-images/windows/SmallTile.scale-100.png"
+        />
+        <meta
+            name="msapplication-square150x150logo"
+            content="/appstore-images/windows/Square150x150Logo.scale-100.png"
+        />
+        <meta
+            name="msapplication-wide310x150logo"
+            content="/appstore-images/windows/Wide310x150Logo.scale-100.png"
+        />
+        <meta
+            name="msapplication-square310x310logo"
+            content="/appstore-images/windows/LargeTile.scale-100.png"
+        />
+
+        <!-- ── Open Graph ─────────────────────────────────────────────────── -->
+        <meta property="og:type" content="website" />
+        <meta property="og:title" content="KudiLog – Personal Budget Tracker" />
+        <meta
+            property="og:description"
+            content="Fast, local-first personal monthly budgeting. Log expenses in seconds, own your data."
+        />
+        <meta property="og:image" content="/icons/icon-512.png" />
+        <meta property="og:image:width" content="512" />
+        <meta property="og:image:height" content="512" />
+        <meta property="og:image:alt" content="KudiLog app icon" />
+
+        <!-- ── Twitter / X card ───────────────────────────────────────────── -->
+        <meta name="twitter:card" content="summary" />
+        <meta
+            name="twitter:title"
+            content="KudiLog – Personal Budget Tracker"
+        />
+        <meta
+            name="twitter:description"
+            content="Fast, local-first personal monthly budgeting."
+        />
+        <meta name="twitter:image" content="/icons/icon-512.png" />
+
+        <!-- ── Critical inline styles ────────────────────────────────────── -->
+        <!-- Prevents a flash of white before the CSS bundle loads -->
+        <style>
+            html,
+            body {
+                background-color: #0a0a0a;
+                margin: 0;
+                padding: 0;
+            }
+            #root {
+                min-height: 100svh;
+                min-height: 100vh;
+            }
+        </style>
+    </head>
+    <body>
+        <div id="root"></div>
+        <script type="module" src="/src/main.jsx"></script>
+    </body>
+</html>

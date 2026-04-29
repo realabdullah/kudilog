@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KudiLog Brand Assets</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: #f0f0e8;
+    min-height: 100vh;
+    padding: 40px 24px;
+  }
+  h1 {
+    text-align: center;
+    color: #1a3a2a;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 40px;
+    opacity: 0.5;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 24px;
+    max-width: 680px;
+    margin: 0 auto;
+  }
+  .card {
+    background: white;
+    border-radius: 16px;
+    padding: 32px;
+    box-shadow: 0 2px 20px rgba(26,58,42,0.08);
+  }
+  .card.dark { background: #1a3a2a; }
+  .card.black { background: #111; }
+  .label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #6bbf4e;
+    margin-bottom: 20px;
+  }
+  .dark .label, .black .label { color: #6bbf4e; opacity: 0.7; }
+  .preview {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 80px;
+  }
+  .icon-row {
+    display: flex;
+    gap: 24px;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .icon-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+  .size-label {
+    font-size: 10px;
+    color: #999;
+    letter-spacing: 1px;
+  }
+  .dark .size-label, .black .size-label { color: rgba(255,255,255,0.3); }
+  .download-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 32px;
+    justify-content: center;
+  }
+  a.btn {
+    display: inline-block;
+    padding: 10px 20px;
+    background: #1a3a2a;
+    color: #6bbf4e;
+    border-radius: 8px;
+    text-decoration: none;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    transition: background 0.2s;
+  }
+  a.btn:hover { background: #6bbf4e; color: #1a3a2a; }
+</style>
+</head>
+<body>
+<h1>KudiLog — Brand Assets</h1>
+
+<div class="grid">
+
+  <!-- Full Logo -->
+  <div class="card">
+    <div class="label">Full Logo — Horizontal</div>
+    <div class="preview">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 150" width="100%" style="max-width:500px">
+        <g transform="translate(8,8)">
+          <rect x="0" y="10" width="108" height="122" rx="10" fill="#1a3a2a"/>
+          <rect x="0" y="10" width="13" height="122" rx="6" fill="#15301f"/>
+          <polygon points="60,10 80,10 80,47 70,39 60,47" fill="#6bbf4e"/>
+          <rect x="22" y="46" width="13" height="52" rx="2" fill="white"/>
+          <polygon points="35,72 66,46 78,46 48,72" fill="#6bbf4e"/>
+          <polygon points="35,72 66,98 78,98 48,72" fill="#6bbf4e"/>
+          <rect x="18" y="110" width="50" height="5" rx="2.5" fill="#3a6640" opacity="0.8"/>
+          <rect x="18" y="120" width="36" height="5" rx="2.5" fill="#3a6640" opacity="0.6"/>
+        </g>
+        <text x="136" y="92" font-family="'Trebuchet MS', sans-serif" font-size="68" font-weight="700" fill="#1a3a2a">KudiLog</text>
+        <circle cx="277" cy="26" r="6" fill="#6bbf4e"/>
+        <text x="140" y="120" font-family="'Trebuchet MS', sans-serif" font-size="14" font-weight="500" fill="#6bbf4e" letter-spacing="3">TRACK. UNDERSTAND. GROW.</text>
+      </svg>
+    </div>
+  </div>
+
+  <!-- Full Logo Dark -->
+  <div class="card dark">
+    <div class="label">Full Logo — Dark Background</div>
+    <div class="preview">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 150" width="100%" style="max-width:500px">
+        <g transform="translate(8,8)">
+          <rect x="0" y="10" width="108" height="122" rx="10" fill="#2a5040"/>
+          <rect x="0" y="10" width="13" height="122" rx="6" fill="#1f3d30"/>
+          <polygon points="60,10 80,10 80,47 70,39 60,47" fill="#6bbf4e"/>
+          <rect x="22" y="46" width="13" height="52" rx="2" fill="white"/>
+          <polygon points="35,72 66,46 78,46 48,72" fill="#6bbf4e"/>
+          <polygon points="35,72 66,98 78,98 48,72" fill="#6bbf4e"/>
+          <rect x="18" y="110" width="50" height="5" rx="2.5" fill="#6bbf4e" opacity="0.4"/>
+          <rect x="18" y="120" width="36" height="5" rx="2.5" fill="#6bbf4e" opacity="0.3"/>
+        </g>
+        <text x="136" y="92" font-family="'Trebuchet MS', sans-serif" font-size="68" font-weight="700" fill="white">KudiLog</text>
+        <circle cx="277" cy="26" r="6" fill="#6bbf4e"/>
+        <text x="140" y="120" font-family="'Trebuchet MS', sans-serif" font-size="14" font-weight="500" fill="#6bbf4e" letter-spacing="3">TRACK. UNDERSTAND. GROW.</text>
+      </svg>
+    </div>
+  </div>
+
+  <!-- Icon variants -->
+  <div class="card">
+    <div class="label">Icon Logo — All Sizes</div>
+    <div class="preview">
+      <div class="icon-row">
+        <!-- 128px -->
+        <div class="icon-wrap">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+            <rect x="4" y="4" width="120" height="120" rx="10" fill="#1a3a2a"/>
+            <rect x="4" y="4" width="14" height="120" rx="6" fill="#15301f"/>
+            <polygon points="66,4 86,4 86,42 76,34 66,42" fill="#6bbf4e"/>
+            <rect x="24" y="34" width="14" height="58" rx="2" fill="white"/>
+            <polygon points="38,63 74,34 88,34 54,63" fill="#6bbf4e"/>
+            <polygon points="38,63 74,92 88,92 54,63" fill="#6bbf4e"/>
+            <rect x="20" y="102" width="52" height="5" rx="2.5" fill="#3a6640" opacity="0.8"/>
+            <rect x="20" y="112" width="40" height="5" rx="2.5" fill="#3a6640" opacity="0.6"/>
+          </svg>
+          <span class="size-label">128px</span>
+        </div>
+        <!-- 64px -->
+        <div class="icon-wrap">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+            <rect x="2" y="2" width="60" height="60" rx="6" fill="#1a3a2a"/>
+            <rect x="2" y="2" width="7" height="60" rx="3" fill="#15301f"/>
+            <polygon points="32,2 43,2 43,20 37.5,16 32,20" fill="#6bbf4e"/>
+            <rect x="12" y="16" width="7" height="30" rx="1.5" fill="white"/>
+            <polygon points="19,31 37,16 44,16 27,31" fill="#6bbf4e"/>
+            <polygon points="19,31 37,46 44,46 27,31" fill="#6bbf4e"/>
+            <rect x="10" y="50" width="26" height="3" rx="1.5" fill="#3a6640" opacity="0.8"/>
+            <rect x="10" y="56" width="20" height="3" rx="1.5" fill="#3a6640" opacity="0.6"/>
+          </svg>
+          <span class="size-label">64px</span>
+        </div>
+        <!-- 32px -->
+        <div class="icon-wrap">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+            <rect x="1" y="1" width="30" height="30" rx="4" fill="#1a3a2a"/>
+            <rect x="1" y="1" width="4" height="30" rx="2" fill="#15301f"/>
+            <polygon points="16,1 22,1 22,10 19,8 16,10" fill="#6bbf4e"/>
+            <rect x="7" y="8" width="4" height="16" rx="1" fill="white"/>
+            <polygon points="11,16 20,8 24,8 15,16" fill="#6bbf4e"/>
+            <polygon points="11,16 20,24 24,24 15,16" fill="#6bbf4e"/>
+            <rect x="6" y="26" width="14" height="2" rx="1" fill="#3a6640" opacity="0.8"/>
+          </svg>
+          <span class="size-label">32px</span>
+        </div>
+        <!-- 16px favicon -->
+        <div class="icon-wrap">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">
+            <rect x="0" y="0" width="16" height="16" rx="2" fill="#1a3a2a"/>
+            <polygon points="8,0 11,0 11,5 9.5,4 8,5" fill="#6bbf4e"/>
+            <rect x="3" y="4" width="3" height="9" rx="0.5" fill="white"/>
+            <polygon points="6,8.5 10,4 12,4 8,8.5" fill="#6bbf4e"/>
+            <polygon points="6,8.5 10,13 12,13 8,8.5" fill="#6bbf4e"/>
+          </svg>
+          <span class="size-label">16px</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- App Icon -->
+  <div class="card">
+    <div class="label">App Icon — iOS / Android Style</div>
+    <div class="preview">
+      <div class="icon-row">
+        <div class="icon-wrap">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="120" height="120">
+            <rect x="0" y="0" width="200" height="200" rx="44" fill="#f5f5ed"/>
+            <rect x="28" y="28" width="144" height="144" rx="10" fill="#1a3a2a"/>
+            <rect x="28" y="28" width="17" height="144" rx="6" fill="#15301f"/>
+            <polygon points="96,28 118,28 118,72 107,63 96,72" fill="#6bbf4e"/>
+            <rect x="50" y="58" width="17" height="68" rx="2" fill="white"/>
+            <polygon points="67,92 106,58 120,58 84,92" fill="#6bbf4e"/>
+            <polygon points="67,92 106,126 120,126 84,92" fill="#6bbf4e"/>
+            <rect x="46" y="138" width="62" height="6" rx="3" fill="#3a6640" opacity="0.8"/>
+            <rect x="46" y="150" width="48" height="6" rx="3" fill="#3a6640" opacity="0.6"/>
+          </svg>
+          <span class="size-label">Light</span>
+        </div>
+        <div class="icon-wrap">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="120" height="120">
+            <rect x="0" y="0" width="200" height="200" rx="44" fill="#1a3a2a"/>
+            <rect x="28" y="28" width="144" height="144" rx="10" fill="#2a5040"/>
+            <rect x="28" y="28" width="17" height="144" rx="6" fill="#1f3d30"/>
+            <polygon points="96,28 118,28 118,72 107,63 96,72" fill="#6bbf4e"/>
+            <rect x="50" y="58" width="17" height="68" rx="2" fill="white"/>
+            <polygon points="67,92 106,58 120,58 84,92" fill="#6bbf4e"/>
+            <polygon points="67,92 106,126 120,126 84,92" fill="#6bbf4e"/>
+            <rect x="46" y="138" width="62" height="6" rx="3" fill="#6bbf4e" opacity="0.4"/>
+            <rect x="46" y="150" width="48" height="6" rx="3" fill="#6bbf4e" opacity="0.3"/>
+          </svg>
+          <span class="size-label">Dark</span>
+        </div>
+        <div class="icon-wrap">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="120" height="120">
+            <rect x="0" y="0" width="200" height="200" rx="44" fill="#111"/>
+            <rect x="28" y="28" width="144" height="144" rx="10" fill="#1a3a2a"/>
+            <rect x="28" y="28" width="17" height="144" rx="6" fill="#15301f"/>
+            <polygon points="96,28 118,28 118,72 107,63 96,72" fill="#6bbf4e"/>
+            <rect x="50" y="58" width="17" height="68" rx="2" fill="white"/>
+            <polygon points="67,92 106,58 120,58 84,92" fill="#6bbf4e"/>
+            <polygon points="67,92 106,126 120,126 84,92" fill="#6bbf4e"/>
+            <rect x="46" y="138" width="62" height="6" rx="3" fill="#3a6640" opacity="0.8"/>
+            <rect x="46" y="150" width="48" height="6" rx="3" fill="#3a6640" opacity="0.6"/>
+          </svg>
+          <span class="size-label">Black</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="download-row">
+  <a class="btn" href="kudilog-full-logo.svg" download>↓ Full Logo SVG</a>
+  <a class="btn" href="kudilog-icon.svg" download>↓ Icon SVG</a>
+  <a class="btn" href="kudilog-app-icon.svg" download>↓ App Icon SVG</a>
+  <a class="btn" href="kudilog-favicon.svg" download>↓ Favicon SVG</a>
+</div>
+
+</body>
+</html>
