@@ -45,6 +45,7 @@ import {
  *   monthlyBudget?: number | null,
  *   categoryBudgets?: Record<string, number>,
  *   theme?: string,
+ *   hideMonetaryValues?: boolean,
  * }} AppSettings
  */
 
@@ -286,6 +287,8 @@ function PrivacyContentPage() {
  *   onConfirmMerge: () => void,
  *   onConfirmReplace: () => void,
  *   loading: false | "merge" | "replace",
+ *   hideMonetaryValues: boolean,
+ *   currency: string,
  * }} props */
 function ImportPreviewModal({
   open,
@@ -294,6 +297,8 @@ function ImportPreviewModal({
   onConfirmMerge,
   onConfirmReplace,
   loading,
+  hideMonetaryValues,
+  currency,
 }) {
   if (!preview) return null;
 
@@ -368,7 +373,11 @@ function ImportPreviewModal({
                     className="grid grid-cols-[1fr_auto] gap-3 text-[12px]"
                   >
                     <span className="text-[#bcbcbc] truncate">{row.name}</span>
-                    <span className="text-[#888] tabular-nums">{row.amount}</span>
+                    <span className="text-[#888] tabular-nums">
+                      {hideMonetaryValues
+                        ? formatCurrency(row.amount, currency, true)
+                        : row.amount}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -1153,6 +1162,18 @@ export default function SettingsView() {
     [setSetting],
   );
 
+  const handleHideMonetaryValuesToggle = useCallback(
+    /** @param {boolean} hideValues */
+    async (hideValues) => {
+      await setSetting("hideMonetaryValues", hideValues);
+      showToast({
+        message: hideValues ? "Monetary values hidden" : "Monetary values shown",
+        type: "info",
+      });
+    },
+    [setSetting],
+  );
+
   // ── Loading state ──────────────────────────────────────────────────────────
   if (!settings) {
     return (
@@ -1169,6 +1190,7 @@ export default function SettingsView() {
   }
 
   const isDark = settings.theme !== "light";
+  const hideMonetaryValues = settings.hideMonetaryValues === true;
 
   // ── Sub-screen renders (early return) ─────────────────────────────────────
   if (subscreen === "category-budgets") {
@@ -1316,6 +1338,13 @@ export default function SettingsView() {
             description="Toggle between dark and light appearance"
           >
             <Toggle checked={isDark} onChange={handleThemeToggle} />
+          </SettingRow>
+
+          <SettingRow
+            label="Hide Monetary Values"
+            description="Mask visible amounts across the app for privacy"
+          >
+            <Toggle checked={hideMonetaryValues} onChange={handleHideMonetaryValuesToggle} />
           </SettingRow>
         </Section>
 
@@ -1598,6 +1627,8 @@ export default function SettingsView() {
         onConfirmMerge={() => handleImport("merge")}
         onConfirmReplace={() => handleImport("replace")}
         loading={importLoading}
+        hideMonetaryValues={hideMonetaryValues}
+        currency={settings.currency ?? "NGN"}
       />
 
       {/* ── Confirm clear all ────────────────────────────────────────────── */}

@@ -54,6 +54,7 @@ const recurringAutomationEnabled =
  *   monthlyBudget?: number | null,
  *   categoryBudgets?: Record<string, number>,
  *   theme?: string,
+ *   hideMonetaryValues?: boolean,
  * }} AppSettings
  */
 
@@ -306,6 +307,14 @@ export default function App() {
     const isLight = settings.theme === "light";
     document.documentElement.classList.toggle("light", isLight);
   }, [settings?.theme]);
+
+  useEffect(() => {
+    if (!settings) return;
+    document.documentElement.classList.toggle(
+      "hide-amounts",
+      settings.hideMonetaryValues === true,
+    );
+  }, [settings?.hideMonetaryValues]);
 
   useEffect(() => {
     const monthLabel = formatMonthLabel(month, "long")

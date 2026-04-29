@@ -57,6 +57,7 @@ function isValidMonthKey(monthKey) {
  *   monthlyBudget?: number | null,
  *   categoryBudgets?: Record<string, number>,
  *   theme?: string,
+ *   hideMonetaryValues?: boolean,
  *   [key: string]: any,
  * }} AppSettings
  */

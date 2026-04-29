@@ -30,6 +30,12 @@ export function getCurrencySymbol(currencyCode = "NGN") {
   return table[currencyCode] ?? currencyCode;
 }
 
+/** @returns {boolean} */
+function shouldHideMonetaryValues() {
+  if (typeof document === "undefined") return false;
+  return document.documentElement.classList.contains("hide-amounts");
+}
+
 /**
  * Format a number as a currency string.
  * Uses compact notation for large numbers when `compact` is true.
@@ -46,6 +52,10 @@ export function formatCurrency(amount, currencyCode = "NGN", compact = false) {
   const symbol = getCurrencySymbol(currencyCode);
   const abs = Math.abs(amount);
   const sign = amount < 0 ? "-" : "";
+
+  if (shouldHideMonetaryValues()) {
+    return `${sign}${symbol}••••`;
+  }
 
   if (compact) {
     if (abs >= 1_000_000_000) {

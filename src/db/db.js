@@ -69,6 +69,7 @@ export async function seedDefaultSettings() {
     { id: "monthlyBudget", value: null }, // null = no limit set
     { id: "categoryBudgets", value: {} }, // { [categoryId]: number }
     { id: "theme", value: "dark" },
+    { id: "hideMonetaryValues", value: false },
   ];
 
   await typedDb.transaction("rw", typedDb.settings, async () => {
