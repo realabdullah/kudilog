@@ -26,7 +26,8 @@ const CURRENCY_SYMBOLS = {
  * @returns {string}
  */
 export function getCurrencySymbol(currencyCode = "NGN") {
-  return CURRENCY_SYMBOLS[currencyCode] ?? currencyCode;
+  const table = /** @type {Record<string, string>} */ (CURRENCY_SYMBOLS);
+  return table[currencyCode] ?? currencyCode;
 }
 
 /**
@@ -39,7 +40,8 @@ export function getCurrencySymbol(currencyCode = "NGN") {
  * @returns {string}
  */
 export function formatCurrency(amount, currencyCode = "NGN", compact = false) {
-  if (amount == null || isNaN(amount)) return `${getCurrencySymbol(currencyCode)}0`;
+  if (amount == null || isNaN(amount))
+    return `${getCurrencySymbol(currencyCode)}0`;
 
   const symbol = getCurrencySymbol(currencyCode);
   const abs = Math.abs(amount);
@@ -209,7 +211,7 @@ export function formatRelativeTime(isoString) {
   if (!isoString) return "";
   const date = new Date(isoString);
   const now = new Date();
-  const diffMs = now - date;
+  const diffMs = now.getTime() - date.getTime();
   const diffSec = Math.floor(diffMs / 1000);
   const diffMin = Math.floor(diffSec / 60);
   const diffHr = Math.floor(diffMin / 60);
@@ -290,21 +292,21 @@ export function formatBarPercent(value) {
 // ─── Category Meta ─────────────────────────────────────────────────────────────
 
 export const CATEGORIES = [
-  { id: "food",          label: "Food & Dining",      emoji: "🍽️" },
-  { id: "transport",     label: "Transport",           emoji: "🚗" },
-  { id: "entertainment", label: "Entertainment",       emoji: "🎬" },
-  { id: "shopping",      label: "Shopping",            emoji: "🛍️" },
-  { id: "health",        label: "Health",              emoji: "💊" },
-  { id: "bills",         label: "Bills & Utilities",   emoji: "💡" },
-  { id: "education",     label: "Education",           emoji: "📚" },
-  { id: "personal",      label: "Personal Care",       emoji: "✨" },
-  { id: "travel",        label: "Travel",              emoji: "✈️" },
-  { id: "other",         label: "Other",               emoji: "📦" },
+  { id: "food", label: "Food & Dining", emoji: "🍽️" },
+  { id: "transport", label: "Transport", emoji: "🚗" },
+  { id: "entertainment", label: "Entertainment", emoji: "🎬" },
+  { id: "shopping", label: "Shopping", emoji: "🛍️" },
+  { id: "health", label: "Health", emoji: "💊" },
+  { id: "bills", label: "Bills & Utilities", emoji: "💡" },
+  { id: "education", label: "Education", emoji: "📚" },
+  { id: "personal", label: "Personal Care", emoji: "✨" },
+  { id: "travel", label: "Travel", emoji: "✈️" },
+  { id: "other", label: "Other", emoji: "📦" },
 ];
 
 /** Map from category id → category meta */
 export const CATEGORY_MAP = Object.fromEntries(
-  CATEGORIES.map((c) => [c.id, c])
+  CATEGORIES.map((c) => [c.id, c]),
 );
 
 /**

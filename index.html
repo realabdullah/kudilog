@@ -13,9 +13,14 @@
             name="description"
             content="Fast, local-first personal monthly budgeting. Log expenses in seconds, view insights, own your data."
         />
+        <meta
+            name="keywords"
+            content="budget tracker, expense tracker, personal finance app, monthly budget, spending insights, local-first finance"
+        />
         <meta name="author" content="KudiLog" />
         <meta name="application-name" content="KudiLog" />
         <meta name="format-detection" content="telephone=no" />
+        <meta name="robots" content="index, follow" />
 
         <!-- ── Colour scheme ──────────────────────────────────────────────── -->
         <meta name="color-scheme" content="dark light" />
@@ -113,18 +118,17 @@
 
         <!-- ── Open Graph ─────────────────────────────────────────────────── -->
         <meta property="og:type" content="website" />
+        <meta property="og:site_name" content="KudiLog" />
         <meta property="og:title" content="KudiLog – Personal Budget Tracker" />
         <meta
             property="og:description"
             content="Fast, local-first personal monthly budgeting. Log expenses in seconds, own your data."
         />
-        <meta property="og:image" content="/icons/icon-512.png" />
-        <meta property="og:image:width" content="512" />
-        <meta property="og:image:height" content="512" />
-        <meta property="og:image:alt" content="KudiLog app icon" />
+        <meta property="og:image" content="/kudilog-og.webp" />
+        <meta property="og:image:alt" content="KudiLog expense tracking and budgeting preview" />
 
         <!-- ── Twitter / X card ───────────────────────────────────────────── -->
-        <meta name="twitter:card" content="summary" />
+        <meta name="twitter:card" content="summary_large_image" />
         <meta
             name="twitter:title"
             content="KudiLog – Personal Budget Tracker"
@@ -133,7 +137,20 @@
             name="twitter:description"
             content="Fast, local-first personal monthly budgeting."
         />
-        <meta name="twitter:image" content="/icons/icon-512.png" />
+        <meta name="twitter:image" content="/kudilog-og.webp" />
+
+        <!-- ── Structured data ───────────────────────────────────────────── -->
+        <script type="application/ld+json">
+            {
+                "@context": "https://schema.org",
+                "@type": "WebApplication",
+                "name": "KudiLog",
+                "applicationCategory": "FinanceApplication",
+                "operatingSystem": "Any",
+                "description": "A fast, local-first personal budget tracker for logging expenses, reviewing spending trends, and understanding monthly money habits.",
+                "image": "/kudilog-og.webp"
+            }
+        </script>
 
         <!-- ── Critical inline styles ────────────────────────────────────── -->
         <!-- Prevents a flash of white before the CSS bundle loads -->

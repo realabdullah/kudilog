@@ -4,12 +4,17 @@
 // Uses Dexie's useLiveQuery for reactive, real-time updates from IndexedDB.
 
 import { useLiveQuery } from "dexie-react-hooks";
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { db } from "../db/db";
 import { currentMonth, toMonthKey } from "../utils/formatters";
 
 const typedDb = /** @type {any} */ (db);
+
+/** @param {unknown} monthKey */
+function isValidMonthKey(monthKey) {
+  return typeof monthKey === "string" && /^\d{4}-\d{2}$/.test(monthKey);
+}
 
 /**
  * @typedef {{
@@ -65,15 +70,14 @@ const typedDb = /** @type {any} */ (db);
  * @returns {Expense[]|undefined}
  */
 export function useMonthExpenses(month) {
-  return useLiveQuery(
-    () =>
-      typedDb.expenses
-        .where("month")
-        .equals(month)
-        .reverse()
-        .sortBy("createdAt"),
-    [month],
-  );
+  return useLiveQuery(() => {
+    if (!isValidMonthKey(month)) return [];
+    return typedDb.expenses
+      .where("month")
+      .equals(month)
+      .reverse()
+      .sortBy("createdAt");
+  }, [month]);
 }
 
 /**
@@ -195,6 +199,7 @@ export function useExpenseMutations() {
    */
   const deleteMonthExpenses = useCallback(
     async (/** @type {string} */ month) => {
+      if (!isValidMonthKey(month)) return 0;
       return typedDb.expenses.where("month").equals(month).delete();
     },
     [],
@@ -341,6 +346,16 @@ export function useCategoryBudgetMutations() {
  */
 export function useMonthStats(month) {
   return useLiveQuery(async () => {
+    if (!isValidMonthKey(month)) {
+      return {
+        total: 0,
+        count: 0,
+        highest: null,
+        average: 0,
+        byCategory: /** @type {Record<string, number>} */ ({}),
+      };
+    }
+
     const expenses = /** @type {Expense[]} */ (
       await typedDb.expenses.where("month").equals(month).toArray()
     );
@@ -390,6 +405,8 @@ export function useMonthStats(month) {
  */
 export function useMonthlyTrend(currentMonthKey, lookback = 6) {
   return useLiveQuery(async () => {
+    if (!isValidMonthKey(currentMonthKey)) return [];
+
     // Build the list of month keys to query
     const months = [];
     const [baseYear, baseMonth] = currentMonthKey.split("-").map(Number);
@@ -400,9 +417,12 @@ export function useMonthlyTrend(currentMonthKey, lookback = 6) {
     }
 
     // Fetch all expenses in the range in one query
-    const expenses = /** @type {Expense[]} */ (
-      await typedDb.expenses.where("month").anyOf(months).toArray()
-    );
+    const expenses =
+      months.length > 0
+        ? /** @type {Expense[]} */ (
+            await typedDb.expenses.where("month").anyOf(months).toArray()
+          )
+        : [];
 
     // Aggregate by month
     const totals = Object.fromEntries(months.map((m) => [m, 0]));
@@ -426,6 +446,10 @@ export function useMonthlyTrend(currentMonthKey, lookback = 6) {
  */
 export function useCategoryTrend(currentMonthKey, lookback = 6, limit = 4) {
   return useLiveQuery(async () => {
+    if (!isValidMonthKey(currentMonthKey)) {
+      return { months: [], series: [] };
+    }
+
     const months = /** @type {string[]} */ ([]);
     const [baseYear, baseMonth] = currentMonthKey.split("-").map(Number);
 
@@ -434,9 +458,12 @@ export function useCategoryTrend(currentMonthKey, lookback = 6, limit = 4) {
       months.push(toMonthKey(d));
     }
 
-    const expenses = /** @type {Expense[]} */ (
-      await typedDb.expenses.where("month").anyOf(months).toArray()
-    );
+    const expenses =
+      months.length > 0
+        ? /** @type {Expense[]} */ (
+            await typedDb.expenses.where("month").anyOf(months).toArray()
+          )
+        : [];
 
     const totalsByCategory = /** @type {Record<string, number>} */ ({});
     const byMonthByCategory =
@@ -481,6 +508,14 @@ export function useCategoryTrend(currentMonthKey, lookback = 6, limit = 4) {
  */
 export function useWeekdaySpendDistribution(month) {
   return useLiveQuery(async () => {
+    if (!isValidMonthKey(month)) {
+      return Array.from({ length: 7 }, (_, day) => ({
+        day,
+        total: 0,
+        count: 0,
+      }));
+    }
+
     const expenses = /** @type {Expense[]} */ (
       await typedDb.expenses.where("month").equals(month).toArray()
     );
@@ -516,6 +551,13 @@ export function useWeekdaySpendDistribution(month) {
  */
 export function useBudgetVariance(month, monthlyBudget, categoryBudgets) {
   return useLiveQuery(async () => {
+    if (!isValidMonthKey(month)) {
+      return {
+        global: null,
+        categories: [],
+      };
+    }
+
     const expenses = /** @type {Expense[]} */ (
       await typedDb.expenses.where("month").equals(month).toArray()
     );
@@ -564,6 +606,394 @@ export function useBudgetVariance(month, monthlyBudget, categoryBudgets) {
   }, [month, monthlyBudget, categoryBudgets]);
 }
 
+/** @param {string} targetMonthKey @param {number} lookback */
+function buildMonthsAround(targetMonthKey, lookback = 6) {
+  if (!isValidMonthKey(targetMonthKey) || lookback <= 0) return [];
+
+  const months = [];
+  const [baseYear, baseMonth] = targetMonthKey.split("-").map(Number);
+  for (let i = lookback - 1; i >= 0; i--) {
+    const d = new Date(baseYear, baseMonth - 1 - i, 1);
+    months.push(toMonthKey(d));
+  }
+  return months;
+}
+
+/** @param {string} monthKey */
+function getMonthDayStats(monthKey) {
+  if (!isValidMonthKey(monthKey)) {
+    return {
+      daysInMonth: 30,
+      elapsedDays: 0,
+      remainingDays: 30,
+    };
+  }
+
+  const [y, m] = monthKey.split("-").map(Number);
+  const daysInMonth = new Date(y, m, 0).getDate();
+  const today = new Date();
+  const current = currentMonth();
+  let elapsedDays = 0;
+
+  if (monthKey < current) {
+    elapsedDays = daysInMonth;
+  } else if (monthKey === current) {
+    elapsedDays = today.getDate();
+  }
+
+  return {
+    daysInMonth,
+    elapsedDays,
+    remainingDays: Math.max(daysInMonth - elapsedDays, 0),
+  };
+}
+
+/**
+ * Compute budget health and pace for a selected month.
+ *
+ * @param {string} month
+ * @param {number|null|undefined} monthlyBudget
+ * @returns {{
+ *   spent: number,
+ *   budget: number|null,
+ *   remaining: number|null,
+ *   pct: number|null,
+ *   allowedDaily: number|null,
+ *   actualDaily: number|null,
+ *   expectedToDate: number|null,
+ *   elapsedDays: number,
+ *   daysInMonth: number,
+ *   remainingDays: number,
+ *   status: "none" | "on-track" | "watch" | "over"
+ * }|undefined}
+ */
+export function useBudgetHealth(month, monthlyBudget) {
+  return useLiveQuery(async () => {
+    if (!isValidMonthKey(month)) {
+      return {
+        spent: 0,
+        budget: null,
+        remaining: null,
+        pct: null,
+        allowedDaily: null,
+        actualDaily: null,
+        expectedToDate: null,
+        elapsedDays: 0,
+        daysInMonth: 30,
+        remainingDays: 30,
+        status: "none",
+      };
+    }
+
+    const expenses = /** @type {Expense[]} */ (
+      await typedDb.expenses.where("month").equals(month).toArray()
+    );
+
+    const spent = expenses.reduce((sum, exp) => sum + exp.amount, 0);
+    const monthStats = getMonthDayStats(month);
+
+    if (!monthlyBudget || Number(monthlyBudget) <= 0) {
+      return {
+        spent,
+        budget: null,
+        remaining: null,
+        pct: null,
+        allowedDaily: null,
+        actualDaily:
+          monthStats.elapsedDays > 0 ? spent / monthStats.elapsedDays : null,
+        expectedToDate: null,
+        elapsedDays: monthStats.elapsedDays,
+        daysInMonth: monthStats.daysInMonth,
+        remainingDays: monthStats.remainingDays,
+        status: "none",
+      };
+    }
+
+    const budget = Number(monthlyBudget);
+    const remaining = budget - spent;
+    const pct = budget > 0 ? (spent / budget) * 100 : null;
+    const allowedDaily = budget / monthStats.daysInMonth;
+    const actualDaily =
+      monthStats.elapsedDays > 0 ? spent / monthStats.elapsedDays : 0;
+    const expectedToDate = allowedDaily * monthStats.elapsedDays;
+
+    let status = /** @type {"none" | "on-track" | "watch" | "over"} */ (
+      "on-track"
+    );
+    if (spent > budget) {
+      status = "over";
+    } else if (actualDaily > allowedDaily * 1.15) {
+      status = "watch";
+    }
+
+    return {
+      spent,
+      budget,
+      remaining,
+      pct,
+      allowedDaily,
+      actualDaily,
+      expectedToDate,
+      elapsedDays: monthStats.elapsedDays,
+      daysInMonth: monthStats.daysInMonth,
+      remainingDays: monthStats.remainingDays,
+      status,
+    };
+  }, [month, monthlyBudget]);
+}
+
+/**
+ * Compute daily burn rate signal for the selected month.
+ *
+ * @param {string} month
+ * @param {number|null|undefined} monthlyBudget
+ * @returns {{
+ *   actualDaily: number,
+ *   allowedDaily: number|null,
+ *   paceRatio: number|null,
+ *   warning: "none" | "watch" | "critical",
+ *   elapsedDays: number,
+ *   remainingDays: number,
+ * }|undefined}
+ */
+export function useDailyBurnRate(month, monthlyBudget) {
+  const health = useBudgetHealth(month, monthlyBudget);
+
+  return useMemo(() => {
+    if (!health) return undefined;
+    const allowedDaily = health.allowedDaily;
+    const actualDaily = Number(health.actualDaily ?? 0);
+    const paceRatio =
+      allowedDaily && allowedDaily > 0 ? actualDaily / allowedDaily : null;
+
+    let warning = /** @type {"none" | "watch" | "critical"} */ ("none");
+    if (paceRatio !== null && paceRatio >= 1.25) {
+      warning = "critical";
+    } else if (paceRatio !== null && paceRatio >= 1.1) {
+      warning = "watch";
+    }
+
+    return {
+      actualDaily,
+      allowedDaily,
+      paceRatio,
+      warning,
+      elapsedDays: health.elapsedDays,
+      remainingDays: health.remainingDays,
+    };
+  }, [health]);
+}
+
+/**
+ * Estimate month-end spend using recent trend and recurring contribution.
+ *
+ * @param {string} month
+ * @param {number|null|undefined} monthlyBudget
+ * @param {number} lookback
+ * @returns {{
+ *   forecast: number,
+ *   baseline: number,
+ *   recurringContribution: number,
+ *   confidence: "low" | "medium" | "high",
+ *   deltaVsBudget: number | null,
+ * }|undefined}
+ */
+export function useMonthForecast(month, monthlyBudget, lookback = 6) {
+  return useLiveQuery(async () => {
+    if (!isValidMonthKey(month)) {
+      return {
+        forecast: 0,
+        baseline: 0,
+        recurringContribution: 0,
+        confidence: "low",
+        deltaVsBudget: null,
+      };
+    }
+
+    const months = buildMonthsAround(month, lookback + 1);
+    const historyMonths = months.slice(0, -1);
+
+    const expenses =
+      historyMonths.length > 0
+        ? /** @type {Expense[]} */ (
+            await typedDb.expenses.where("month").anyOf(historyMonths).toArray()
+          )
+        : [];
+
+    const totals = Object.fromEntries(historyMonths.map((m) => [m, 0]));
+    for (const exp of expenses) {
+      if (totals[exp.month] !== undefined) {
+        totals[exp.month] += exp.amount;
+      }
+    }
+
+    const series = historyMonths.map((m) => totals[m] ?? 0);
+    const baseline =
+      series.length > 0
+        ? series.reduce((sum, v) => sum + v, 0) / series.length
+        : 0;
+
+    const recurring = /** @type {RecurringTemplate[]} */ (
+      await typedDb.recurring.toArray()
+    );
+    const recurringContribution = recurring
+      .filter((tpl) => tpl.enabled && tpl.startMonth <= month)
+      .reduce((sum, tpl) => sum + Number(tpl.amount || 0), 0);
+
+    const forecast =
+      recurringContribution > 0
+        ? baseline * 0.65 + recurringContribution * 0.35
+        : baseline;
+
+    const variance =
+      series.length > 0
+        ? series.reduce((sum, v) => sum + (v - baseline) ** 2, 0) /
+          series.length
+        : 0;
+    const std = Math.sqrt(variance);
+    const cv = baseline > 0 ? std / baseline : 1;
+
+    let confidence = /** @type {"low" | "medium" | "high"} */ ("low");
+    if (series.length >= 4 && cv < 0.25) {
+      confidence = "high";
+    } else if (series.length >= 3 && cv < 0.45) {
+      confidence = "medium";
+    }
+
+    const deltaVsBudget =
+      monthlyBudget && Number(monthlyBudget) > 0
+        ? forecast - Number(monthlyBudget)
+        : null;
+
+    return {
+      forecast,
+      baseline,
+      recurringContribution,
+      confidence,
+      deltaVsBudget,
+    };
+  }, [month, monthlyBudget, lookback]);
+}
+
+/**
+ * Build an export-ready analytics snapshot for the selected month.
+ *
+ * @param {string} month
+ * @param {string} currency
+ * @param {number|null|undefined} monthlyBudget
+ * @param {Record<string, number>|null|undefined} categoryBudgets
+ * @returns {{
+ *   meta: { generatedAt: string, month: string, currency: string },
+ *   summary: { total: number, count: number, average: number, highest: number },
+ *   budget: { monthlyBudget: number | null, spent: number, remaining: number | null, pct: number | null },
+ *   categories: Array<{ categoryId: string, total: number }>,
+ *   trend6: Array<{ month: string, total: number }>,
+ * }|undefined}
+ */
+export function useAnalyticsExportSnapshot(
+  month,
+  currency,
+  monthlyBudget,
+  categoryBudgets,
+) {
+  return useLiveQuery(async () => {
+    if (!isValidMonthKey(month)) {
+      return {
+        meta: {
+          generatedAt: new Date().toISOString(),
+          month: currentMonth(),
+          currency,
+        },
+        summary: {
+          total: 0,
+          count: 0,
+          average: 0,
+          highest: 0,
+        },
+        budget: {
+          monthlyBudget: null,
+          spent: 0,
+          remaining: null,
+          pct: null,
+        },
+        categories: [],
+        trend6: [],
+        categoryBudgets: categoryBudgets || {},
+      };
+    }
+
+    const trendMonths = buildMonthsAround(month, 6);
+    const [monthExpenses, trendExpenses] = await Promise.all([
+      /** @type {Promise<Expense[]>} */ (
+        typedDb.expenses.where("month").equals(month).toArray()
+      ),
+      trendMonths.length > 0
+        ? /** @type {Promise<Expense[]>} */ (
+            typedDb.expenses.where("month").anyOf(trendMonths).toArray()
+          )
+        : Promise.resolve([]),
+    ]);
+
+    const total = monthExpenses.reduce((sum, exp) => sum + exp.amount, 0);
+    const count = monthExpenses.length;
+    const average = count > 0 ? total / count : 0;
+    const highest =
+      count > 0
+        ? monthExpenses.reduce((max, exp) => Math.max(max, exp.amount), 0)
+        : 0;
+
+    const byCategory = /** @type {Record<string, number>} */ ({});
+    for (const exp of monthExpenses) {
+      const cat = exp.category || "other";
+      byCategory[cat] = (byCategory[cat] ?? 0) + exp.amount;
+    }
+
+    const categories = Object.entries(byCategory)
+      .map(([categoryId, amount]) => ({ categoryId, total: amount }))
+      .sort((a, b) => b.total - a.total);
+
+    const months = trendMonths;
+    const trendMap = Object.fromEntries(months.map((m) => [m, 0]));
+    for (const exp of trendExpenses) {
+      if (trendMap[exp.month] !== undefined) {
+        trendMap[exp.month] += exp.amount;
+      }
+    }
+
+    const trend6 = months.map((m) => ({ month: m, total: trendMap[m] ?? 0 }));
+
+    const budget =
+      monthlyBudget && Number(monthlyBudget) > 0 ? Number(monthlyBudget) : null;
+
+    const spent = total;
+    const remaining = budget !== null ? budget - spent : null;
+    const pct = budget !== null && budget > 0 ? (spent / budget) * 100 : null;
+
+    return {
+      meta: {
+        generatedAt: new Date().toISOString(),
+        month,
+        currency,
+      },
+      summary: {
+        total,
+        count,
+        average,
+        highest,
+      },
+      budget: {
+        monthlyBudget: budget,
+        spent,
+        remaining,
+        pct,
+      },
+      categories,
+      trend6,
+      categoryBudgets: categoryBudgets || {},
+    };
+  }, [month, currency, monthlyBudget, categoryBudgets]);
+}
+
 /**
  * Detect unusual spending patterns for the selected month.
  *
@@ -576,6 +1006,13 @@ export function useBudgetVariance(month, monthlyBudget, categoryBudgets) {
  */
 export function useSpendingAnomalies(month, lookback = 6) {
   return useLiveQuery(async () => {
+    if (!isValidMonthKey(month)) {
+      return {
+        monthly: null,
+        categories: [],
+      };
+    }
+
     const months = [];
     const [baseYear, baseMonth] = month.split("-").map(Number);
 
@@ -584,9 +1021,12 @@ export function useSpendingAnomalies(month, lookback = 6) {
       months.push(toMonthKey(d));
     }
 
-    const expenses = /** @type {Expense[]} */ (
-      await typedDb.expenses.where("month").anyOf(months).toArray()
-    );
+    const expenses =
+      months.length > 0
+        ? /** @type {Expense[]} */ (
+            await typedDb.expenses.where("month").anyOf(months).toArray()
+          )
+        : [];
 
     const monthlyTotals = Object.fromEntries(months.map((m) => [m, 0]));
     const currentByCategory = /** @type {Record<string, number>} */ ({});

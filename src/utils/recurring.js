@@ -4,17 +4,26 @@ import { currentMonth, parseMonthKey, toMonthKey } from "./formatters";
 
 const typedDb = /** @type {any} */ (db);
 
+/** @param {string} monthKey */
+function isValidMonthKey(monthKey) {
+  return typeof monthKey === "string" && /^\d{4}-\d{2}$/.test(monthKey);
+}
+
+/** @param {string} a @param {string} b */
 function compareMonthKeys(a, b) {
   return a.localeCompare(b);
 }
 
+/** @param {string} monthKey */
 function nextMonthKey(monthKey) {
   const date = parseMonthKey(monthKey);
   date.setMonth(date.getMonth() + 1);
   return toMonthKey(date);
 }
 
+/** @param {string} startMonth @param {string} endMonth */
 function listMonthKeys(startMonth, endMonth) {
+  if (!isValidMonthKey(startMonth) || !isValidMonthKey(endMonth)) return [];
   if (compareMonthKeys(startMonth, endMonth) > 0) return [];
 
   const months = [];
@@ -28,6 +37,7 @@ function listMonthKeys(startMonth, endMonth) {
   return months;
 }
 
+/** @param {import("../db/db").RecurringTemplate} template @param {string} monthKey */
 function buildRecurringExpense(template, monthKey) {
   const createdAt = new Date(`${monthKey}-01T09:00:00.000Z`).toISOString();
   return {
@@ -52,11 +62,17 @@ function buildRecurringExpense(template, monthKey) {
 export async function syncRecurringExpensesToMonth(
   targetMonth = currentMonth(),
 ) {
+  if (!isValidMonthKey(targetMonth)) {
+    return { created: 0, synced: 0 };
+  }
+
   const templates = /** @type {import("../db/db").RecurringTemplate[]} */ (
     await typedDb.recurring.toArray()
   );
 
-  const enabledTemplates = templates.filter((template) => template.enabled);
+  const enabledTemplates = templates.filter(
+    (template) => template.enabled && isValidMonthKey(template.startMonth),
+  );
   if (enabledTemplates.length === 0) {
     return { created: 0, synced: 0 };
   }
@@ -69,9 +85,12 @@ export async function syncRecurringExpensesToMonth(
   }, "");
 
   const monthsToInspect = listMonthKeys(earliestMonth, targetMonth);
-  const existingExpenses = /** @type {import("../db/db").Expense[]} */ (
-    await typedDb.expenses.where("month").anyOf(monthsToInspect).toArray()
-  );
+  const existingExpenses =
+    monthsToInspect.length > 0
+      ? /** @type {import("../db/db").Expense[]} */ (
+          await typedDb.expenses.where("month").anyOf(monthsToInspect).toArray()
+        )
+      : [];
   const existingKeys = new Set(
     existingExpenses
       .filter(
@@ -81,8 +100,9 @@ export async function syncRecurringExpensesToMonth(
       .map((expense) => `${expense.recurringId}:${expense.month}`),
   );
 
-  const expensesToCreate = [];
-  const templatesToUpdate = [];
+  const expensesToCreate = /** @type {import("../db/db").Expense[]} */ ([]);
+  const templatesToUpdate =
+    /** @type {import("../db/db").RecurringTemplate[]} */ ([]);
 
   for (const template of enabledTemplates) {
     const startMonth = template.lastGeneratedMonth

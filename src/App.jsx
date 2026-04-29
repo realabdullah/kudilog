@@ -7,12 +7,13 @@
 //   - View orchestration
 
 import { useEffect, useState } from "react"
+import { useRegisterSW } from "virtual:pwa-register/react"
 import AnalyticsView from "./components/analytics/AnalyticsView"
 import ExpenseInput from "./components/expenses/ExpenseInput"
 import ExpenseList from "./components/expenses/ExpenseList"
 import AppLayout from "./components/layout/AppLayout"
 import SettingsView from "./components/settings/SettingsView"
-import { KudiLogo, ToastContainer } from "./components/ui/index"
+import { KudiLogo, Modal, ToastContainer, showToast } from "./components/ui/index"
 import { seedDefaultSettings } from "./db/db"
 import {
   useAllSettings,
@@ -31,6 +32,13 @@ import { syncRecurringExpensesToMonth } from "./utils/recurring"
 const recurringAutomationEnabled =
   (/** @type {any} */ (import.meta)).env?.VITE_RECURRING_AUTOMATION !==
   "false";
+
+/**
+ * @typedef {{
+ *   prompt: () => Promise<void>,
+ *   userChoice: Promise<{ outcome: "accepted" | "dismissed", platform?: string }>
+ * }} DeferredInstallPromptEvent
+ */
 
 /**
  * @typedef {{
@@ -187,12 +195,92 @@ function SplashScreen() {
   );
 }
 
+/** @param {{ children: import("react").ReactNode, onClick: () => void, variant?: "default" | "primary" }} props */
+function PromptActionButton({ children, onClick, variant = "default" }) {
+  const classes =
+    variant === "primary"
+      ? "bg-[#6bbf4e] text-[#081105] border-[#6bbf4e] hover:brightness-105"
+      : "bg-[#1a1a1a] text-[#bcbcbc] border-[#222] hover:text-white hover:border-[#333]"
+
+  return (
+    <button
+      onClick={onClick}
+      className={`h-10 px-4 rounded-xl text-[13px] font-medium border transition-colors ${classes}`}
+    >
+      {children}
+    </button>
+  )
+}
+
+/** @param {{ open: boolean, onUpdate: () => void | Promise<void>, onDismiss: () => void }} props */
+function UpdatePrompt({ open, onUpdate, onDismiss }) {
+  return (
+    <Modal open={open} onClose={onDismiss} title="Update available" size="sm">
+      <div className="space-y-4">
+        <p className="text-[12px] leading-relaxed text-[#9a9a9a]">
+          A new version of KudiLog is ready. Update now to get the latest fixes and
+          improvements.
+        </p>
+        <div className="flex items-center justify-end gap-2">
+          <PromptActionButton onClick={onDismiss}>Later</PromptActionButton>
+          <PromptActionButton onClick={onUpdate} variant="primary">
+            Update now
+          </PromptActionButton>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+/** @param {{ open: boolean, onInstall: () => void | Promise<void>, onDismiss: () => void }} props */
+function InstallPrompt({ open, onInstall, onDismiss }) {
+  return (
+    <Modal open={open} onClose={onDismiss} title="Install KudiLog" size="sm">
+      <div className="space-y-4">
+        <p className="text-[12px] leading-relaxed text-[#9a9a9a]">
+          Install KudiLog for faster access, a full-screen app experience, and a
+          more seamless day-to-day budgeting workflow.
+        </p>
+        <div className="rounded-xl border border-[#1a1a1a] bg-[#0d0d0d] px-3.5 py-3">
+          <div className="text-[12px] font-medium text-white">Why install it?</div>
+          <div className="mt-1.5 space-y-1 text-[11px] leading-relaxed text-[#8f8f8f]">
+            <div>• Open KudiLog like a regular app from your home screen or desktop.</div>
+            <div>• Get a cleaner, distraction-free experience.</div>
+            <div>• Stay ready for offline-friendly usage and updates.</div>
+          </div>
+        </div>
+        <div className="flex items-center justify-end gap-2">
+          <PromptActionButton onClick={onDismiss}>Not now</PromptActionButton>
+          <PromptActionButton onClick={onInstall} variant="primary">
+            Install app
+          </PromptActionButton>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+/** @param {string} selector @param {string} content */
+function setHeadMeta(selector, content) {
+  const element = document.head.querySelector(selector)
+  if (element) {
+    element.setAttribute("content", content)
+  }
+}
+
 // ─── Root App ──────────────────────────────────────────────────────────────────
 
 export default function App() {
   const [activeTab, setActiveTab] = useState(/** @type {"dashboard" | "analytics" | "settings"} */ ("dashboard"));
   const [month, setMonth] = useState(currentMonth);
   const [minSplashDone, setMinSplashDone] = useState(false);
+  const [installPromptEvent, setInstallPromptEvent] = useState(/** @type {DeferredInstallPromptEvent | null} */ (null));
+  const [showInstallPrompt, setShowInstallPrompt] = useState(false);
+
+  const {
+    needRefresh: [needRefresh, setNeedRefresh],
+    updateServiceWorker,
+  } = useRegisterSW();
 
   /** @type {AppSettings | undefined} */
   const settings = useAllSettings();
@@ -219,6 +307,36 @@ export default function App() {
     document.documentElement.classList.toggle("light", isLight);
   }, [settings?.theme]);
 
+  useEffect(() => {
+    const monthLabel = formatMonthLabel(month, "long")
+
+    const metaByTab = {
+      dashboard: {
+        title: `KudiLog – Track Expenses for ${monthLabel}`,
+        description:
+          `Track your ${monthLabel} expenses, watch your budget, and stay on top of day-to-day spending with KudiLog.`,
+      },
+      analytics: {
+        title: `KudiLog Insights – ${monthLabel} Spending Analysis`,
+        description:
+          `Review ${monthLabel} spending trends, budget health, category breakdowns, and useful money insights in KudiLog.`,
+      },
+      settings: {
+        title: "KudiLog Settings – Personal Budget Preferences",
+        description:
+          "Manage your budget, category limits, recurring entries, and app preferences in KudiLog.",
+      },
+    }
+
+    const currentMeta = metaByTab[activeTab]
+    document.title = currentMeta.title
+    setHeadMeta('meta[name="description"]', currentMeta.description)
+    setHeadMeta('meta[property="og:title"]', currentMeta.title)
+    setHeadMeta('meta[property="og:description"]', currentMeta.description)
+    setHeadMeta('meta[name="twitter:title"]', currentMeta.title)
+    setHeadMeta('meta[name="twitter:description"]', currentMeta.description)
+  }, [activeTab, month])
+
   const appReady = settings !== undefined && minSplashDone;
 
   useEffect(() => {
@@ -231,6 +349,52 @@ export default function App() {
     }
     syncRecurringExpensesToMonth(currentMonth()).catch(console.error);
   }, [appReady, recurringTemplates]);
+
+  useEffect(() => {
+    const isStandalone =
+      window.matchMedia?.("(display-mode: standalone)")?.matches ||
+      (/** @type {any} */ (window.navigator)).standalone === true
+
+    if (isStandalone) return undefined
+
+    /** @param {Event} event */
+    const handleBeforeInstallPrompt = (event) => {
+      event.preventDefault()
+      setInstallPromptEvent(/** @type {DeferredInstallPromptEvent} */ (/** @type {unknown} */ (event)))
+      setShowInstallPrompt(true)
+    }
+
+    const handleAppInstalled = () => {
+      setInstallPromptEvent(null)
+      setShowInstallPrompt(false)
+      showToast({ message: "KudiLog installed", type: "success" })
+    }
+
+    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt)
+    window.addEventListener("appinstalled", handleAppInstalled)
+
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt)
+      window.removeEventListener("appinstalled", handleAppInstalled)
+    }
+  }, [])
+
+  const handleInstallApp = async () => {
+    if (!installPromptEvent) return
+
+    await installPromptEvent.prompt()
+    const result = await installPromptEvent.userChoice
+    if (result?.outcome === "accepted") {
+      showToast({ message: "Install started", type: "success" })
+    }
+    setShowInstallPrompt(false)
+    setInstallPromptEvent(null)
+  }
+
+  const handleUpdateApp = async () => {
+    await updateServiceWorker(true)
+    setNeedRefresh(false)
+  }
 
   return (
     <>
@@ -264,6 +428,18 @@ export default function App() {
 
       {/* Global toast notifications */}
       <ToastContainer />
+
+      <UpdatePrompt
+        open={needRefresh}
+        onUpdate={handleUpdateApp}
+        onDismiss={() => setNeedRefresh(false)}
+      />
+
+      <InstallPrompt
+        open={showInstallPrompt && Boolean(installPromptEvent)}
+        onInstall={handleInstallApp}
+        onDismiss={() => setShowInstallPrompt(false)}
+      />
     </>
   );
 }

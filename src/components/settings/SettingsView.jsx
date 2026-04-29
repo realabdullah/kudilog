@@ -205,6 +205,78 @@ function SubScreenHeader({ title, onBack }) {
   );
 }
 
+function PrivacyContentPage() {
+  return (
+    <div className="space-y-4">
+      <div className="rounded-xl border border-[#1a1a1a] bg-[#0d0d0d] p-4 space-y-3">
+        <div className="text-[14px] font-semibold text-white">Your financial data stays with you</div>
+        <p className="text-[12px] leading-relaxed text-[#9a9a9a]">
+          KudiLog is designed as a local-first personal finance app. Your expenses,
+          budgets, recurring entries, and settings are stored on your device for your
+          use alone.
+        </p>
+        <p className="text-[12px] leading-relaxed text-[#9a9a9a]">
+          KudiLog does not send your personal financial data to external servers, does
+          not sell it, and does not use it for advertising, profiling, or third-party
+          analytics.
+        </p>
+      </div>
+
+      <div className="rounded-xl border border-[#1a1a1a] bg-[#0d0d0d] p-4 space-y-3">
+        <div className="text-[11px] uppercase tracking-widest text-[#7a7a7a]">Privacy Commitment</div>
+        <div className="space-y-2.5 text-[12px] leading-relaxed text-[#9a9a9a]">
+          <p>
+            Your information belongs to you. KudiLog treats your spending records as
+            private personal data and is built to keep that information under your
+            control.
+          </p>
+          <p>
+            By default, entries are kept locally in your browser storage on this device.
+            Unless you choose to export or share your data yourself, it remains on your
+            device.
+          </p>
+          <p>
+            This means you can track your finances with confidence, knowing that the app
+            is intended to support your decisions without transferring your records away
+            from you.
+          </p>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-[#1a1a1a] bg-[#0d0d0d] p-4 space-y-3">
+        <div className="text-[11px] uppercase tracking-widest text-[#7a7a7a]">What this means in practice</div>
+        <div className="space-y-2.5 text-[12px] text-[#9a9a9a] leading-relaxed">
+          <p>
+            Your expense records remain on your device unless you choose to export
+            them yourself.
+          </p>
+          <p>
+            Your budgets, recurring entries, and personal settings are kept locally
+            as part of your private app data.
+          </p>
+          <p>
+            Any sharing of information happens only when you deliberately choose to
+            export or copy data for your own use.
+          </p>
+          <p>
+            Your personal finance history is not used for advertising, resale, or
+            third-party profiling.
+          </p>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-[#1a1a1a] bg-[#0d0d0d] p-4 space-y-2">
+        <div className="text-[12px] font-medium text-white">Professional assurance</div>
+        <p className="text-[12px] leading-relaxed text-[#9a9a9a]">
+          KudiLog is built with privacy as a product principle, not an afterthought.
+          The app is intended to help you understand your money while keeping your data
+          private, local, and within your control.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 // ─── Import preview modal ──────────────────────────────────────────────────────
 
 /** @param {{
@@ -928,8 +1000,8 @@ export default function SettingsView() {
   const [clearingRecurring, setClearingRecurring] = useState(false);
 
   // ── Sub-screen navigation ──────────────────────────────────────────────────
-  /** @type {[null | "category-budgets" | "recurring", import("react").Dispatch<import("react").SetStateAction<null | "category-budgets" | "recurring">>]} */
-  const [subscreen, setSubscreen] = useState(/** @type {null | "category-budgets" | "recurring"} */ (null));
+  /** @type {[null | "category-budgets" | "recurring" | "privacy", import("react").Dispatch<import("react").SetStateAction<null | "category-budgets" | "recurring" | "privacy">>]} */
+  const [subscreen, setSubscreen] = useState(/** @type {null | "category-budgets" | "recurring" | "privacy"} */ (null));
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
@@ -1124,6 +1196,15 @@ export default function SettingsView() {
           onToggle={toggleRecurringTemplate}
           onDelete={deleteRecurringTemplate}
         />
+      </div>
+    );
+  }
+
+  if (subscreen === "privacy") {
+    return (
+      <div className="space-y-5 pb-10">
+        <SubScreenHeader title="Privacy" onBack={() => setSubscreen(null)} />
+        <PrivacyContentPage />
       </div>
     );
   }
@@ -1407,6 +1488,12 @@ export default function SettingsView() {
 
         {/* ── About ───────────────────────────────────────────────────────── */}
         <Section title="About">
+          <SettingNavRow
+            label="Privacy"
+            description="How KudiLog protects your data and keeps it under your control"
+            onClick={() => setSubscreen("privacy")}
+          />
+
           <div className="bg-[#0d0d0d] border border-[#1a1a1a] rounded-xl overflow-hidden">
             {/* Brand block */}
             <div className="flex flex-col items-center justify-center px-4 py-6 border-b border-[#131313] gap-3">

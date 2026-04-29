@@ -9,8 +9,12 @@
 
 import { useMemo, useState } from "react"
 import {
+    useAnalyticsExportSnapshot,
+    useBudgetHealth,
     useBudgetVariance,
     useCategoryTrend,
+    useDailyBurnRate,
+    useMonthForecast,
     useMonthStats,
     useMonthlyTrend,
     useRecurringExpenses,
@@ -18,7 +22,13 @@ import {
     useWeekdaySpendDistribution,
 } from "../../hooks/useExpenses"
 import {
+  buildAnalyticsLLMPrompt,
+    exportAnalyticsSnapshotCSV,
+    exportAnalyticsSnapshotJSON,
+} from "../../utils/analyticsExport"
+import {
     clamp,
+    currentMonth,
     formatCurrency,
     formatMonthShort,
     formatPercentChange,
@@ -26,7 +36,12 @@ import {
     getCategoryLabel,
     percentChange,
 } from "../../utils/formatters"
-import { Badge, EmptyState, Skeleton } from "../ui/index"
+import { Badge, EmptyState, Skeleton, showToast } from "../ui/index"
+
+/** @param {unknown} value */
+function isValidMonthKey(value) {
+  return typeof value === "string" && /^\d{4}-\d{2}$/.test(value)
+}
 
 /** @typedef {{ month: string, total: number }} TrendPoint */
 /** @typedef {{ total: number, count: number, highest: { amount: number, name: string } | null, average: number, byCategory: Record<string, number> }} StatsShape */
@@ -188,7 +203,7 @@ function TrendChart({ trend, currency, currentMonth }) {
   const max = useMemo(() => Math.max(...trend.map((t) => t.total), 1), [trend]);
 
   return (
-    <div className="flex items-end gap-1.5 h-20">
+    <div className="flex items-end gap-1.5 h-24">
       {trend.map((point) => {
         const heightPct = max > 0 ? (point.total / max) * 100 : 0;
         const isCurrent = point.month === currentMonth;
@@ -197,20 +212,20 @@ function TrendChart({ trend, currency, currentMonth }) {
         return (
           <div
             key={point.month}
-            className="flex-1 flex flex-col items-center gap-1.5"
+            className="flex-1 h-full flex flex-col items-center justify-end gap-1.5"
             title={`${formatMonthShort(point.month)}: ${formatCurrency(point.total, currency)}`}
           >
             {/* Bar */}
-            <div className="w-full flex items-end flex-1">
+            <div className="w-full h-16 flex items-end">
               <div
                 className={`
                   w-full rounded-t-sm transition-all duration-700 ease-out
                   ${
                     isEmpty
-                      ? "bg-[#1a1a1a] opacity-40"
+                      ? "bg-[#242424] opacity-60"
                       : isCurrent
                         ? "bg-[#6bbf4e]"
-                        : "bg-[#2a2a2a]"
+                        : "bg-[#4a4a4a]"
                   }
                 `}
                 style={{
@@ -420,6 +435,63 @@ function SectionHeader({ title, subtitle }) {
   );
 }
 
+/** @param {{ health: any, burn: any, forecast: any, currency: string }} props */
+function HealthAndForecast({ health, burn, forecast, currency }) {
+  if (!health || !burn || !forecast) return null;
+
+  const pacePct = burn.paceRatio !== null ? burn.paceRatio * 100 : null;
+
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+      <div className="rounded-xl border border-[#1a1a1a] bg-[#0d0d0d] p-3">
+        <div className="text-[11px] uppercase tracking-widest text-[#7a7a7a]">Budget Health</div>
+        <div className="mt-1 text-[14px] font-semibold text-white tabular-nums">
+          {health.budget !== null
+            ? formatCurrency(health.remaining ?? 0, currency, true)
+            : "No budget"}
+        </div>
+        <div className="mt-1 text-[11px] text-[#666] tabular-nums">
+          {health.budget !== null
+            ? `${formatCurrency(health.spent, currency, true)} spent`
+            : `${formatCurrency(health.spent, currency, true)} this month`}
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-[#1a1a1a] bg-[#0d0d0d] p-3">
+        <div className="text-[11px] uppercase tracking-widest text-[#7a7a7a]">Daily Pace</div>
+        <div
+          className={`mt-1 text-[14px] font-semibold tabular-nums ${
+            burn.warning === "critical"
+              ? "text-red-400"
+              : burn.warning === "watch"
+                ? "text-amber-400"
+                : "text-emerald-400"
+          }`}
+        >
+          {pacePct !== null ? `${pacePct.toFixed(0)}% pace` : "No pace baseline"}
+        </div>
+        <div className="mt-1 text-[11px] text-[#666] tabular-nums">
+          {burn.allowedDaily !== null
+            ? `${formatCurrency(burn.actualDaily, currency, true)} / day vs ${formatCurrency(burn.allowedDaily, currency, true)} target`
+            : `${formatCurrency(burn.actualDaily, currency, true)} / day`}
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-[#1a1a1a] bg-[#0d0d0d] p-3">
+        <div className="text-[11px] uppercase tracking-widest text-[#7a7a7a]">Forecast</div>
+        <div className="mt-1 text-[14px] font-semibold text-white tabular-nums">
+          {formatCurrency(forecast.forecast, currency, true)}
+        </div>
+        <div className="mt-1 text-[11px] text-[#666] tabular-nums">
+          {forecast.deltaVsBudget !== null
+            ? `${forecast.deltaVsBudget >= 0 ? "+" : ""}${formatCurrency(forecast.deltaVsBudget, currency, true)} vs budget · ${forecast.confidence} confidence`
+            : `${forecast.confidence} confidence`}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /** @param {{ variance: { budget: number, spent: number, variance: number, pct: number } | null, currency: string }} props */
 function GlobalVariance({ variance, currency }) {
   if (!variance) return null;
@@ -579,15 +651,27 @@ export default function AnalyticsView({
   monthlyBudget = null,
   categoryBudgets = {},
 }) {
+  const safeMonth = isValidMonthKey(month) ? month : currentMonth();
+  const [showMoreOptions, setShowMoreOptions] = useState(false);
+
   /** @type {StatsShape | undefined} */
-  const stats = useMonthStats(month);
+  const stats = useMonthStats(safeMonth);
   /** @type {TrendPoint[] | undefined} */
-  const trend = useMonthlyTrend(month, 6);
+  const trend = useMonthlyTrend(safeMonth, 6);
   const recurring = useRecurringExpenses(2);
-  const anomalies = useSpendingAnomalies(month, 6);
-  const categoryTrend = useCategoryTrend(month, 6, 4);
-  const weekdaySpend = useWeekdaySpendDistribution(month);
-  const budgetVariance = useBudgetVariance(month, monthlyBudget, categoryBudgets);
+  const anomalies = useSpendingAnomalies(safeMonth, 6);
+  const categoryTrend = useCategoryTrend(safeMonth, 6, 4);
+  const weekdaySpend = useWeekdaySpendDistribution(safeMonth);
+  const budgetVariance = useBudgetVariance(safeMonth, monthlyBudget, categoryBudgets);
+  const budgetHealth = useBudgetHealth(safeMonth, monthlyBudget);
+  const dailyBurn = useDailyBurnRate(safeMonth, monthlyBudget);
+  const monthForecast = useMonthForecast(safeMonth, monthlyBudget, 6);
+  const exportSnapshot = useAnalyticsExportSnapshot(
+    safeMonth,
+    currency,
+    monthlyBudget,
+    categoryBudgets,
+  );
 
   // ── Derived: prev month total for comparison ──────────────────────────────
   const prevMonthTotal = useMemo(() => {
@@ -633,7 +717,18 @@ export default function AnalyticsView({
   }, [monthlyBudget, stats]);
 
   // ── Loading ────────────────────────────────────────────────────────────────
-  if (!stats || !trend || !categoryTrend || !weekdaySpend || !budgetVariance || !anomalies) {
+  if (
+    !stats ||
+    !trend ||
+    !categoryTrend ||
+    !weekdaySpend ||
+    !budgetVariance ||
+    !anomalies ||
+    !budgetHealth ||
+    !dailyBurn ||
+    !monthForecast ||
+    !exportSnapshot
+  ) {
     return (
       <div className="space-y-6 pb-8">
         {/* Stats grid skeleton */}
@@ -687,8 +782,97 @@ export default function AnalyticsView({
 
   const mom = percentChange(stats.total, prevMonthTotal);
 
+  const handleExportCSV = () => {
+    try {
+      exportAnalyticsSnapshotCSV(exportSnapshot);
+      setShowMoreOptions(false);
+      showToast({ message: "Analytics CSV downloaded", type: "success" });
+    } catch (err) {
+      showToast({ message: "Could not export CSV", type: "error" });
+      console.error(err);
+    }
+  };
+
+  const handleExportJSON = () => {
+    try {
+      exportAnalyticsSnapshotJSON(exportSnapshot);
+      setShowMoreOptions(false);
+      showToast({ message: "Analytics JSON downloaded", type: "success" });
+    } catch (err) {
+      showToast({ message: "Could not export JSON", type: "error" });
+      console.error(err);
+    }
+  };
+
+  const handleCopyLLMPrompt = async () => {
+    try {
+      const prompt = buildAnalyticsLLMPrompt(exportSnapshot);
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(prompt);
+      } else {
+        const ta = document.createElement("textarea");
+        ta.value = prompt;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+      }
+      setShowMoreOptions(false);
+      showToast({ message: "Prompt copied", type: "success" });
+    } catch (err) {
+      showToast({ message: "Could not copy LLM prompt", type: "error" });
+      console.error(err);
+    }
+  };
+
   return (
     <div className="space-y-7 pb-8">
+      <div className="relative flex items-center justify-end gap-2">
+        <button
+          type="button"
+          onClick={() => setShowMoreOptions((prev) => !prev)}
+          className="h-8 px-3 rounded-lg text-[11px] font-medium bg-[#0d0d0d] border border-[#1a1a1a] text-[#9a9a9a] hover:text-white hover:border-[#333] transition-colors"
+        >
+          More options
+        </button>
+
+        {showMoreOptions ? (
+          <div className="absolute top-10 right-0 z-20 w-56 rounded-xl border border-[#1a1a1a] bg-[#0d0d0d] shadow-[0_8px_24px_rgba(0,0,0,0.4)] p-1.5">
+            <button
+              type="button"
+              onClick={handleExportCSV}
+              className="w-full text-left px-2.5 py-2 rounded-lg text-[12px] text-[#bcbcbc] hover:bg-[#151515] hover:text-white transition-colors"
+            >
+              Download CSV
+            </button>
+            <button
+              type="button"
+              onClick={handleExportJSON}
+              className="w-full text-left px-2.5 py-2 rounded-lg text-[12px] text-[#bcbcbc] hover:bg-[#151515] hover:text-white transition-colors"
+            >
+              Download JSON
+            </button>
+            <button
+              type="button"
+              onClick={handleCopyLLMPrompt}
+              className="w-full text-left px-2.5 py-2 rounded-lg text-[12px] text-[#bcbcbc] hover:bg-[#151515] hover:text-white transition-colors"
+            >
+              Copy as prompt
+            </button>
+          </div>
+        ) : null}
+      </div>
+
+      <HealthAndForecast
+        health={budgetHealth}
+        burn={dailyBurn}
+        forecast={monthForecast}
+        currency={currency}
+      />
+
       {/* ── Summary Stats Grid ─────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 gap-2">
         <StatCard
@@ -822,14 +1006,14 @@ export default function AnalyticsView({
       <div>
         <SectionHeader
           title="6-Month Trend"
-          subtitle={formatMonthShort(month)}
+          subtitle={formatMonthShort(safeMonth)}
         />
-        <TrendChart trend={trend} currency={currency} currentMonth={month} />
+        <TrendChart trend={trend} currency={currency} currentMonth={safeMonth} />
 
         {/* Trend totals row */}
         <div className="flex gap-1.5 mt-3 overflow-x-auto scrollbar-none pb-1">
           {trend.map((point) => {
-            const isCurrent = point.month === month;
+            const isCurrent = point.month === safeMonth;
             return (
               <div key={point.month} className="flex-1 min-w-0 text-center">
                 <div
