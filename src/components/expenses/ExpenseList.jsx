@@ -225,35 +225,47 @@ function FilterPanel({ filters, onChange, onReset }) {
         </button>
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
-        <input
-          type="text"
-          inputMode="decimal"
-          value={filters.minAmount}
-          onChange={(e) => onChange({ ...filters, minAmount: e.target.value })}
-          placeholder="Min amount"
-          className="w-full bg-[#0a0a0a] border border-[#1f1f1f] rounded-lg px-3 py-2 text-[12px] text-white outline-none"
-        />
-        <input
-          type="text"
-          inputMode="decimal"
-          value={filters.maxAmount}
-          onChange={(e) => onChange({ ...filters, maxAmount: e.target.value })}
-          placeholder="Max amount"
-          className="w-full bg-[#0a0a0a] border border-[#1f1f1f] rounded-lg px-3 py-2 text-[12px] text-white outline-none"
-        />
-        <input
-          type="date"
-          value={filters.startDate}
-          onChange={(e) => onChange({ ...filters, startDate: e.target.value })}
-          className="w-full bg-[#0a0a0a] border border-[#1f1f1f] rounded-lg px-3 py-2 text-[12px] text-white outline-none"
-        />
-        <input
-          type="date"
-          value={filters.endDate}
-          onChange={(e) => onChange({ ...filters, endDate: e.target.value })}
-          className="w-full bg-[#0a0a0a] border border-[#1f1f1f] rounded-lg px-3 py-2 text-[12px] text-white outline-none"
-        />
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <label className="block text-[10px] font-medium text-[#666] uppercase tracking-wider ml-1">Min Amount</label>
+          <input
+            type="text"
+            inputMode="decimal"
+            value={filters.minAmount}
+            onChange={(e) => onChange({ ...filters, minAmount: e.target.value })}
+            placeholder="0.00"
+            className="w-full bg-[#0a0a0a] border border-[#1f1f1f] rounded-lg px-3 py-2 text-[12px] text-white outline-none focus:border-[#333]"
+          />
+        </div>
+        <div className="space-y-1">
+          <label className="block text-[10px] font-medium text-[#666] uppercase tracking-wider ml-1">Max Amount</label>
+          <input
+            type="text"
+            inputMode="decimal"
+            value={filters.maxAmount}
+            onChange={(e) => onChange({ ...filters, maxAmount: e.target.value })}
+            placeholder="0.00"
+            className="w-full bg-[#0a0a0a] border border-[#1f1f1f] rounded-lg px-3 py-2 text-[12px] text-white outline-none focus:border-[#333]"
+          />
+        </div>
+        <div className="space-y-1">
+          <label className="block text-[10px] font-medium text-[#666] uppercase tracking-wider ml-1">Start Date</label>
+          <input
+            type="date"
+            value={filters.startDate}
+            onChange={(e) => onChange({ ...filters, startDate: e.target.value })}
+            className="w-full bg-[#0a0a0a] border border-[#1f1f1f] rounded-lg px-3 py-2 text-[12px] text-white outline-none focus:border-[#333]"
+          />
+        </div>
+        <div className="space-y-1">
+          <label className="block text-[10px] font-medium text-[#666] uppercase tracking-wider ml-1">End Date</label>
+          <input
+            type="date"
+            value={filters.endDate}
+            onChange={(e) => onChange({ ...filters, endDate: e.target.value })}
+            className="w-full bg-[#0a0a0a] border border-[#1f1f1f] rounded-lg px-3 py-2 text-[12px] text-white outline-none focus:border-[#333]"
+          />
+        </div>
       </div>
 
       <div className="flex gap-1.5 overflow-x-auto scrollbar-none pb-1">

@@ -62,6 +62,15 @@ function isValidMonthKey(monthKey) {
  * }} AppSettings
  */
 
+/**
+ * @typedef {{
+ *   id: string,
+ *   label: string,
+ *   emoji: string,
+ *   createdAt: string,
+ * }} Category
+ */
+
 // ─── Expenses ──────────────────────────────────────────────────────────────────
 
 /**
@@ -236,6 +245,48 @@ export function useExpenseMutations() {
   };
 }
 
+// ─── Categories ───────────────────────────────────────────────────────────────
+
+/**
+ * Fetch all categories from the database.
+ * @returns {Category[]|undefined}
+ */
+export function useCategories() {
+  return useLiveQuery(() => typedDb.categories.toArray());
+}
+
+/**
+ * Returns CRUD functions for categories.
+ */
+export function useCategoryMutations() {
+  const addCategory = useCallback(async (/** @type {{ label: string, emoji: string }} */ data) => {
+    const id = data.label.toLowerCase().trim().replace(/\s+/g, "-");
+    const category = {
+      id,
+      label: data.label.trim(),
+      emoji: data.emoji || "📦",
+      createdAt: new Date().toISOString(),
+    };
+    await typedDb.categories.add(category);
+    return id;
+  }, []);
+
+  const updateCategory = useCallback(async (/** @type {string} */ id, /** @type {Partial<Category>} */ changes) => {
+    return typedDb.categories.update(id, changes);
+  }, []);
+
+  const deleteCategory = useCallback(async (/** @type {string} */ id) => {
+    // Note: We don't delete expenses in that category, they will just show as "Other" or "Uncategorised"
+    await typedDb.categories.delete(id);
+  }, []);
+
+  return {
+    addCategory,
+    updateCategory,
+    deleteCategory,
+  };
+}
+
 // ─── Settings ──────────────────────────────────────────────────────────────────
 
 /**
@@ -287,9 +338,6 @@ export function useCategoryBudgets() {
   return useSetting("categoryBudgets", {});
 }
 
-/**
- * Returns stable mutation helpers for category budgets.
- */
 export function useCategoryBudgetMutations() {
   const setCategoryBudget = useCallback(
     async (/** @type {string} */ categoryId, /** @type {number} */ amount) => {
@@ -329,6 +377,36 @@ export function useCategoryBudgetMutations() {
     setCategoryBudget,
     clearCategoryBudget,
   };
+}
+
+// ─── Month-specific Budgets ────────────────────────────────────────────────────
+
+/**
+ * Fetch the budget for a specific month.
+ * @param {string} month
+ * @returns {number|null|undefined}
+ */
+export function useMonthBudget(month) {
+  return useLiveQuery(async () => {
+    if (!isValidMonthKey(month)) return null;
+    const row = await typedDb.budgets.get(month);
+    return row ? row.amount : null;
+  }, [month]);
+}
+
+/**
+ * Returns stable mutation helpers for month-specific budgets.
+ */
+export function useBudgetMutations() {
+  const setMonthBudget = useCallback(async (/** @type {string} */ month, /** @type {number|null} */ amount) => {
+    if (amount === null) {
+      await typedDb.budgets.delete(month);
+    } else {
+      await typedDb.budgets.put({ id: month, amount });
+    }
+  }, []);
+
+  return { setMonthBudget };
 }
 
 // ─── Analytics helpers (reactive) ─────────────────────────────────────────────
@@ -550,7 +628,7 @@ export function useWeekdaySpendDistribution(month) {
  *   categories: Array<{ categoryId: string, budget: number, spent: number, variance: number, pct: number }>
  * }|undefined}
  */
-export function useBudgetVariance(month, monthlyBudget, categoryBudgets) {
+export function useBudgetVariance(month, globalMonthlyBudget, categoryBudgets) {
   return useLiveQuery(async () => {
     if (!isValidMonthKey(month)) {
       return {
@@ -558,6 +636,10 @@ export function useBudgetVariance(month, monthlyBudget, categoryBudgets) {
         categories: [],
       };
     }
+
+    // Get month-specific budget override if it exists
+    const monthBudgetRow = await typedDb.budgets.get(month);
+    const activeBudget = monthBudgetRow ? monthBudgetRow.amount : globalMonthlyBudget;
 
     const expenses = /** @type {Expense[]} */ (
       await typedDb.expenses.where("month").equals(month).toArray()
@@ -591,12 +673,12 @@ export function useBudgetVariance(month, monthlyBudget, categoryBudgets) {
       .sort((a, b) => b.pct - a.pct);
 
     const global =
-      monthlyBudget && Number(monthlyBudget) > 0
+      activeBudget && Number(activeBudget) > 0
         ? {
-            budget: Number(monthlyBudget),
+            budget: Number(activeBudget),
             spent: totalSpent,
-            variance: Number(monthlyBudget) - totalSpent,
-            pct: (totalSpent / Number(monthlyBudget)) * 100,
+            variance: Number(activeBudget) - totalSpent,
+            pct: (totalSpent / Number(activeBudget)) * 100,
           }
         : null;
 
@@ -604,7 +686,7 @@ export function useBudgetVariance(month, monthlyBudget, categoryBudgets) {
       global,
       categories: categoryRows,
     };
-  }, [month, monthlyBudget, categoryBudgets]);
+  }, [month, globalMonthlyBudget, categoryBudgets]);
 }
 
 /** @param {string} targetMonthKey @param {number} lookback */
@@ -668,7 +750,7 @@ function getMonthDayStats(monthKey) {
  *   status: "none" | "on-track" | "watch" | "over"
  * }|undefined}
  */
-export function useBudgetHealth(month, monthlyBudget) {
+export function useBudgetHealth(month, globalMonthlyBudget) {
   return useLiveQuery(async () => {
     if (!isValidMonthKey(month)) {
       return {
@@ -686,6 +768,10 @@ export function useBudgetHealth(month, monthlyBudget) {
       };
     }
 
+    // Get month-specific budget override if it exists
+    const monthBudgetRow = await typedDb.budgets.get(month);
+    const activeBudget = monthBudgetRow ? monthBudgetRow.amount : globalMonthlyBudget;
+
     const expenses = /** @type {Expense[]} */ (
       await typedDb.expenses.where("month").equals(month).toArray()
     );
@@ -693,7 +779,7 @@ export function useBudgetHealth(month, monthlyBudget) {
     const spent = expenses.reduce((sum, exp) => sum + exp.amount, 0);
     const monthStats = getMonthDayStats(month);
 
-    if (!monthlyBudget || Number(monthlyBudget) <= 0) {
+    if (!activeBudget || Number(activeBudget) <= 0) {
       return {
         spent,
         budget: null,
@@ -710,7 +796,7 @@ export function useBudgetHealth(month, monthlyBudget) {
       };
     }
 
-    const budget = Number(monthlyBudget);
+    const budget = Number(activeBudget);
     const remaining = budget - spent;
     const pct = budget > 0 ? (spent / budget) * 100 : null;
     const allowedDaily = budget / monthStats.daysInMonth;
@@ -740,7 +826,7 @@ export function useBudgetHealth(month, monthlyBudget) {
       remainingDays: monthStats.remainingDays,
       status,
     };
-  }, [month, monthlyBudget]);
+  }, [month, globalMonthlyBudget]);
 }
 
 /**

@@ -6,11 +6,11 @@
 //   - Live preview of parsed input
 //   - Keyboard-first: Enter to submit, Escape to clear
 
-import { useState, useRef, useEffect, useCallback } from "react";
-import { parseExpenseInput, previewInput } from "../../utils/parseInput";
-import { formatCurrency, CATEGORIES } from "../../utils/formatters";
-import { useExpenseMutations } from "../../hooks/useExpenses";
-import { showToast } from "../ui/index";
+import { useCallback, useRef, useState } from "react"
+import { useCategories, useExpenseMutations } from "../../hooks/useExpenses"
+import { formatCurrency, getCurrencySymbol } from "../../utils/formatters"
+import { parseExpenseInput, previewInput } from "../../utils/parseInput"
+import { showToast } from "../ui/index"
 
 // ─── Category Pill ─────────────────────────────────────────────────────────────
 
@@ -78,6 +78,7 @@ export default function ExpenseInput({
   onSuccess,
 }) {
   const { addExpense } = useExpenseMutations();
+  const categories = useCategories() ?? [];
 
   // ── State ──────────────────────────────────────────────────────────────────
   const [raw, setRaw] = useState("");
@@ -92,11 +93,6 @@ export default function ExpenseInput({
 
   const inputRef = useRef(null);
   const manualNameRef = useRef(null);
-
-  // ── Auto-focus on mount ────────────────────────────────────────────────────
-  useEffect(() => {
-    if (inputRef.current) inputRef.current.focus();
-  }, []);
 
   // ── Category toggle ────────────────────────────────────────────────────────
   const toggleCategory = useCallback((id) => {
@@ -353,7 +349,7 @@ export default function ExpenseInput({
           {/* Category pills row — shown when input has content */}
           {raw.trim().length > 0 && (
             <div className="px-4 pb-3.5 flex gap-1.5 overflow-x-auto scrollbar-none">
-              {CATEGORIES.map((cat) => (
+              {categories.map((cat) => (
                 <CategoryPill
                   key={cat.id}
                   category={cat}
@@ -418,15 +414,7 @@ export default function ExpenseInput({
               </label>
               <div className="relative">
                 <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[14px] text-[#6a6a6a] font-medium pointer-events-none select-none">
-                  {currency === "NGN"
-                    ? "₦"
-                    : currency === "USD"
-                      ? "$"
-                      : currency === "EUR"
-                        ? "€"
-                        : currency === "GBP"
-                          ? "£"
-                          : currency}
+                  {getCurrencySymbol(currency)}
                 </span>
                 <input
                   type="text"
@@ -455,7 +443,7 @@ export default function ExpenseInput({
                 <span className="normal-case text-[#5e5e5e]">(optional)</span>
               </label>
               <div className="flex gap-1.5 flex-wrap">
-                {CATEGORIES.map((cat) => (
+                {categories.map((cat) => (
                   <CategoryPill
                     key={cat.id}
                     category={cat}

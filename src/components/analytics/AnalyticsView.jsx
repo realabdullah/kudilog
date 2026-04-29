@@ -10,10 +10,13 @@
 import { useMemo, useState } from "react"
 import {
     useAnalyticsExportSnapshot,
+    useAllSettings,
     useBudgetHealth,
     useBudgetVariance,
+    useCategories,
     useCategoryTrend,
     useDailyBurnRate,
+    useMonthBudget,
     useMonthForecast,
     useMonthStats,
     useMonthlyTrend,
@@ -22,7 +25,7 @@ import {
     useWeekdaySpendDistribution,
 } from "../../hooks/useExpenses"
 import {
-  buildAnalyticsLLMPrompt,
+    buildAnalyticsLLMPrompt,
     exportAnalyticsSnapshotCSV,
     exportAnalyticsSnapshotJSON,
 } from "../../utils/analyticsExport"
@@ -46,6 +49,14 @@ function isValidMonthKey(value) {
 /** @typedef {{ month: string, total: number }} TrendPoint */
 /** @typedef {{ total: number, count: number, highest: { amount: number, name: string } | null, average: number, byCategory: Record<string, number> }} StatsShape */
 
+const getCategoryInfo = (categoryId, categories = []) => {
+  const cat = categories.find((c) => c.id === categoryId);
+  return {
+    label: cat?.label ?? "Uncategorised",
+    emoji: cat?.emoji ?? "📦",
+  };
+};
+
 // ─── Stat Card ─────────────────────────────────────────────────────────────────
 
 /** @param {{ label: string, value: string, sub?: string, accent?: boolean }} props */
@@ -56,7 +67,7 @@ function StatCard({ label, value, sub, accent = false }) {
         flex flex-col gap-1 px-4 py-3.5 rounded-xl border
         ${
           accent
-            ? "bg-[#6bbf4e]/5 border-[#6bbf4e]/15"
+            ? "bg-emerald-950/20 border-emerald-900/30"
             : "bg-[#0d0d0d] border-[#1a1a1a]"
         }
       `}
@@ -66,7 +77,7 @@ function StatCard({ label, value, sub, accent = false }) {
       </span>
       <span
         className={`text-[22px] font-bold tracking-tight leading-none tabular-nums ${
-          accent ? "text-[#6bbf4e]" : "text-white"
+          accent ? "text-emerald-400" : "text-white"
         }`}
       >
         {value}
@@ -92,16 +103,17 @@ function StatCardSkeleton() {
 
 // ─── Category Row ──────────────────────────────────────────────────────────────
 
-/** @param {{ categoryId: string, amount: number, total: number, currency: string, rank: number }} props */
-function CategoryRow({ categoryId, amount, total, currency, rank }) {
+/** @param {{ categoryId: string, amount: number, total: number, currency: string, rank: number, categories: any[] }} props */
+function CategoryRow({ categoryId, amount, total, currency, rank, categories }) {
   const pct = total > 0 ? (amount / total) * 100 : 0;
   const barWidth = `${clamp(pct, 0, 100).toFixed(1)}%`;
+  const { label, emoji } = getCategoryInfo(categoryId, categories);
 
   // Colour progression: top category is more vivid
   const barColours = [
-    "bg-[#6bbf4e]",
-    "bg-blue-500",
     "bg-emerald-500",
+    "bg-blue-500",
+    "bg-emerald-600",
     "bg-amber-500",
     "bg-rose-500",
     "bg-cyan-500",
@@ -118,10 +130,10 @@ function CategoryRow({ categoryId, amount, total, currency, rank }) {
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
           <span className="text-[13px] leading-none">
-            {getCategoryEmoji(categoryId)}
+            {emoji}
           </span>
           <span className="text-[13px] text-[#c0c0c0] font-medium truncate">
-            {getCategoryLabel(categoryId)}
+            {label}
           </span>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -145,22 +157,23 @@ function CategoryRow({ categoryId, amount, total, currency, rank }) {
   );
 }
 
-/** @param {{ categoryId: string, spent: number, budget: number, currency: string }} props */
-function CategoryBudgetRow({ categoryId, spent, budget, currency }) {
+/** @param {{ categoryId: string, spent: number, budget: number, currency: string, categories: any[] }} props */
+function CategoryBudgetRow({ categoryId, spent, budget, currency, categories }) {
   const pct = budget > 0 ? (spent / budget) * 100 : 0;
   const capped = clamp(pct, 0, 100);
   const remaining = Math.max(budget - spent, 0);
   const over = Math.max(spent - budget, 0);
+  const { label, emoji } = getCategoryInfo(categoryId, categories);
 
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
           <span className="text-[13px] leading-none">
-            {getCategoryEmoji(categoryId)}
+            {emoji}
           </span>
           <span className="text-[13px] text-[#c0c0c0] font-medium truncate">
-            {getCategoryLabel(categoryId)}
+            {label}
           </span>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -224,7 +237,7 @@ function TrendChart({ trend, currency, currentMonth }) {
                     isEmpty
                       ? "bg-[#242424] opacity-60"
                       : isCurrent
-                        ? "bg-[#6bbf4e]"
+                        ? "bg-emerald-500"
                         : "bg-[#4a4a4a]"
                   }
                 `}
@@ -237,7 +250,7 @@ function TrendChart({ trend, currency, currentMonth }) {
             {/* Label */}
             <span
               className={`text-[9px] tabular-nums font-medium leading-none ${
-                isCurrent ? "text-[#6bbf4e]" : "text-[#5e5e5e]"
+                isCurrent ? "text-emerald-500" : "text-[#5e5e5e]"
               }`}
             >
               {formatMonthShort(point.month).split(" ")[0]}
@@ -251,13 +264,14 @@ function TrendChart({ trend, currency, currentMonth }) {
 
 // ─── Insight Banner ────────────────────────────────────────────────────────────
 
-/** @param {{ currentTotal: number, prevTotal: number, topCategory: string | null, topCategoryAmount: number, totalExpenses: number }} props */
+/** @param {{ currentTotal: number, prevTotal: number, topCategory: string | null, topCategoryAmount: number, totalExpenses: number, categories: any[] }} props */
 function InsightBanner({
   currentTotal,
   prevTotal,
   topCategory,
   topCategoryAmount,
   totalExpenses,
+  categories,
 }) {
   const change = percentChange(currentTotal, prevTotal);
 
@@ -277,9 +291,10 @@ function InsightBanner({
   // Top category insight
   if (topCategory && totalExpenses > 0) {
     const pct = ((topCategoryAmount / currentTotal) * 100).toFixed(0);
+    const { label, emoji } = getCategoryInfo(topCategory, categories);
     insights.push({
-      icon: getCategoryEmoji(topCategory),
-      text: `${getCategoryLabel(topCategory)} accounts for ${pct}% of your spending`,
+      icon: emoji,
+      text: `${label} accounts for ${pct}% of your spending`,
       variant: "default",
     });
   }
@@ -297,9 +312,9 @@ function InsightBanner({
 
   const variantClasses = {
     default: "bg-[#0d0d0d] border-[#1a1a1a] text-[#888]",
-    warning: "bg-amber-500/5 border-amber-500/15 text-amber-400/80",
-    success: "bg-emerald-500/5 border-emerald-500/15 text-emerald-400/80",
-    accent: "bg-[#6bbf4e]/5 border-[#6bbf4e]/15 text-[#6bbf4e]/80",
+    warning: "bg-amber-950/20 border-amber-900/30 text-amber-400/80",
+    success: "bg-emerald-950/20 border-emerald-900/30 text-emerald-400/80",
+    accent: "bg-emerald-950/20 border-emerald-900/30 text-emerald-400/80",
   };
 
   return (
@@ -369,8 +384,8 @@ function RecurringSection({ recurring, currency }) {
   );
 }
 
-/** @param {{ anomalies: { monthly: { kind: "spike" | "drop", current: number, baseline: number, changePct: number } | null, categories: Array<{ categoryId: string, current: number, baseline: number, changePct: number }> }, currency: string }} props */
-function AnomalySection({ anomalies, currency }) {
+/** @param {{ anomalies: { monthly: { kind: "spike" | "drop", current: number, baseline: number, changePct: number } | null, categories: Array<{ categoryId: string, current: number, baseline: number, changePct: number }> }, currency: string, categories: any[] }} props */
+function AnomalySection({ anomalies, currency, categories }) {
   const hasMonthly = anomalies.monthly !== null;
   const hasCategory = anomalies.categories.length > 0;
   if (!hasMonthly && !hasCategory) return null;
@@ -397,25 +412,28 @@ function AnomalySection({ anomalies, currency }) {
           </div>
         ) : null}
 
-        {anomalies.categories.map((row) => (
-          <div
-            key={row.categoryId}
-            className="rounded-xl border border-[#171717] bg-[#0b0b0b] px-3 py-2.5"
-          >
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-[12px] text-[#c0c0c0] flex items-center gap-1.5">
-                <span>{getCategoryEmoji(row.categoryId)}</span>
-                <span>{getCategoryLabel(row.categoryId)}</span>
-              </span>
-              <span className="text-[11px] text-red-400 tabular-nums font-semibold">
-                +{row.changePct.toFixed(1)}%
-              </span>
+        {anomalies.categories.map((row) => {
+          const { label, emoji } = getCategoryInfo(row.categoryId, categories);
+          return (
+            <div
+              key={row.categoryId}
+              className="rounded-xl border border-[#171717] bg-[#0b0b0b] px-3 py-2.5"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[12px] text-[#c0c0c0] flex items-center gap-1.5">
+                  <span>{emoji}</span>
+                  <span>{label}</span>
+                </span>
+                <span className="text-[11px] text-red-400 tabular-nums font-semibold">
+                  +{row.changePct.toFixed(1)}%
+                </span>
+              </div>
+              <div className="mt-1 text-[10px] text-[#4a4a4a] tabular-nums">
+                {formatCurrency(row.current, currency, true)} now vs {formatCurrency(row.baseline, currency, true)} typical
+              </div>
             </div>
-            <div className="mt-1 text-[10px] text-[#4a4a4a] tabular-nums">
-              {formatCurrency(row.current, currency, true)} now vs {formatCurrency(row.baseline, currency, true)} typical
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -524,23 +542,24 @@ function GlobalVariance({ variance, currency }) {
   );
 }
 
-/** @param {{ rows: Array<{ categoryId: string, budget: number, spent: number, variance: number, pct: number }>, currency: string }} props */
-function CategoryVariance({ rows, currency }) {
+/** @param {{ rows: Array<{ categoryId: string, budget: number, spent: number, variance: number, pct: number }>, currency: string, categories: any[] }} props */
+function CategoryVariance({ rows, currency, categories }) {
   if (!rows.length) return null;
 
   return (
     <div className="space-y-2.5">
       {rows.slice(0, 4).map((row) => {
         const over = row.variance < 0;
+        const { label, emoji } = getCategoryInfo(row.categoryId, categories);
         return (
           <div
             key={row.categoryId}
             className="flex items-center justify-between gap-3 rounded-lg border border-[#171717] bg-[#0b0b0b] px-3 py-2"
           >
             <div className="flex items-center gap-2 min-w-0">
-              <span>{getCategoryEmoji(row.categoryId)}</span>
+              <span>{emoji}</span>
               <span className="text-[12px] text-[#b5b5b5] truncate">
-                {getCategoryLabel(row.categoryId)}
+                {label}
               </span>
             </div>
             <div className="text-right shrink-0">
@@ -583,7 +602,7 @@ function WeekdayDistribution({ weekdays, currency }) {
             </div>
             <div className="h-1 bg-[#191919] rounded-full overflow-hidden">
               <div
-                className="h-full bg-[#6bbf4e] rounded-full"
+                className="h-full bg-emerald-500 rounded-full"
                 style={{ width: `${width.toFixed(1)}%` }}
               />
             </div>
@@ -594,8 +613,8 @@ function WeekdayDistribution({ weekdays, currency }) {
   );
 }
 
-/** @param {{ trend: { months: string[], series: Array<{ categoryId: string, total: number, points: Array<{ month: string, total: number }> }> }, currency: string }} props */
-function CategoryMomentum({ trend, currency }) {
+/** @param {{ trend: { months: string[], series: Array<{ categoryId: string, total: number, points: Array<{ month: string, total: number }> }> }, currency: string, categories: any[] }} props */
+function CategoryMomentum({ trend, currency, categories }) {
   if (!trend.series.length) return null;
 
   const max = Math.max(
@@ -605,32 +624,35 @@ function CategoryMomentum({ trend, currency }) {
 
   return (
     <div className="space-y-3">
-      {trend.series.map((series) => (
-        <div key={series.categoryId} className="space-y-1.5">
-          <div className="flex items-center justify-between">
-            <span className="text-[12px] text-[#bcbcbc] font-medium flex items-center gap-1.5">
-              <span>{getCategoryEmoji(series.categoryId)}</span>
-              <span>{getCategoryLabel(series.categoryId)}</span>
-            </span>
-            <span className="text-[10px] text-[#666] tabular-nums">
-              {series.points[series.points.length - 1]?.total > 0
-                ? formatCurrency(series.points[series.points.length - 1].total, currency, true)
-                : "—"}
-            </span>
+      {trend.series.map((series) => {
+        const { label, emoji } = getCategoryInfo(series.categoryId, categories);
+        return (
+          <div key={series.categoryId} className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="text-[12px] text-[#bcbcbc] font-medium flex items-center gap-1.5">
+                <span>{emoji}</span>
+                <span>{label}</span>
+              </span>
+              <span className="text-[10px] text-[#666] tabular-nums">
+                {series.points[series.points.length - 1]?.total > 0
+                  ? formatCurrency(series.points[series.points.length - 1].total, currency, true)
+                  : "—"}
+              </span>
+            </div>
+            <div className="flex items-end gap-1 h-10">
+              {series.points.map((point) => (
+                <div key={point.month} className="flex-1 h-full flex items-end">
+                  <div
+                    className="w-full bg-[#2a2a2a] rounded-sm"
+                    style={{ height: `${clamp((point.total / max) * 100, 6, 100).toFixed(1)}%` }}
+                    title={`${formatMonthShort(point.month)}: ${point.total}`}
+                  />
+                </div>
+              ))}
+            </div>
           </div>
-          <div className="flex items-end gap-1 h-10">
-            {series.points.map((point) => (
-              <div key={point.month} className="flex-1 h-full flex items-end">
-                <div
-                  className="w-full bg-[#2a2a2a] rounded-sm"
-                  style={{ height: `${clamp((point.total / max) * 100, 6, 100).toFixed(1)}%` }}
-                  title={`${formatMonthShort(point.month)}: ${point.total}`}
-                />
-              </div>
-            ))}
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -640,37 +662,52 @@ function CategoryMomentum({ trend, currency }) {
 /**
  * @param {{
  *   month: string,
- *   currency?: string,
- *   monthlyBudget?: number | null,
- *   categoryBudgets?: Record<string, number>,
  * }} props
  */
 export default function AnalyticsView({
   month,
-  currency = "NGN",
-  monthlyBudget = null,
-  categoryBudgets = {},
 }) {
-  const safeMonth = isValidMonthKey(month) ? month : currentMonth();
+  const settings = useAllSettings();
+  const currency = settings?.currency ?? "NGN";
+  const globalBudget = settings?.monthlyBudget ?? null;
+  const categories = useCategories() ?? [];
+
+  const [activeMonthKey, setActiveMonthKey] = useState(month);
+  const safeMonth = activeMonthKey ?? currentMonth();
+
+  const monthBudget = useMonthBudget(safeMonth);
+  const activeBudget = monthBudget !== null ? monthBudget : globalBudget;
   const [showMoreOptions, setShowMoreOptions] = useState(false);
 
-  /** @type {StatsShape | undefined} */
-  const stats = useMonthStats(safeMonth);
-  /** @type {TrendPoint[] | undefined} */
+  /** @type {StatsShape} */
+  const stats = useMonthStats(safeMonth) ?? {
+    total: 0,
+    count: 0,
+    highest: null,
+    average: 0,
+    byCategory: {},
+  };
+  
   const trend = useMonthlyTrend(safeMonth, 6);
   const recurring = useRecurringExpenses(2);
   const anomalies = useSpendingAnomalies(safeMonth, 6);
   const categoryTrend = useCategoryTrend(safeMonth, 6, 4);
   const weekdaySpend = useWeekdaySpendDistribution(safeMonth);
-  const budgetVariance = useBudgetVariance(safeMonth, monthlyBudget, categoryBudgets);
-  const budgetHealth = useBudgetHealth(safeMonth, monthlyBudget);
-  const dailyBurn = useDailyBurnRate(safeMonth, monthlyBudget);
-  const monthForecast = useMonthForecast(safeMonth, monthlyBudget, 6);
+  
+  const budgetHealth = useBudgetHealth(safeMonth, activeBudget);
+  const dailyBurn = useDailyBurnRate(safeMonth, activeBudget);
+  const budgetVariance = useBudgetVariance(
+    safeMonth,
+    activeBudget,
+    settings?.categoryBudgets ?? {},
+  );
+  const monthForecast = useMonthForecast(safeMonth, activeBudget, 6);
+  
   const exportSnapshot = useAnalyticsExportSnapshot(
     safeMonth,
     currency,
-    monthlyBudget,
-    categoryBudgets,
+    activeBudget,
+    settings?.categoryBudgets ?? {},
   );
 
   // ── Derived: prev month total for comparison ──────────────────────────────
@@ -693,7 +730,8 @@ export default function AnalyticsView({
   const topCategoryAmount = sortedCategories[0]?.[1] ?? 0;
 
   const categoryBudgetRows = useMemo(() => {
-    const entries = Object.entries(categoryBudgets || {}).filter(
+    const categoryBudgets = settings?.categoryBudgets ?? {};
+    const entries = Object.entries(categoryBudgets).filter(
       ([, value]) => Number.isFinite(Number(value)) && Number(value) > 0,
     );
 
@@ -708,13 +746,13 @@ export default function AnalyticsView({
         };
       })
       .sort((a, b) => b.pct - a.pct);
-  }, [categoryBudgets, stats]);
+  }, [settings?.categoryBudgets, stats]);
 
   // ── Budget progress ────────────────────────────────────────────────────────
   const budgetPct = useMemo(() => {
-    if (!monthlyBudget || !stats) return null;
-    return clamp((stats.total / monthlyBudget) * 100, 0, 100);
-  }, [monthlyBudget, stats]);
+    if (!activeBudget || !stats) return null;
+    return clamp((stats.total / activeBudget) * 100, 0, 100);
+  }, [activeBudget, stats]);
 
   // ── Loading ────────────────────────────────────────────────────────────────
   if (
@@ -903,7 +941,7 @@ export default function AnalyticsView({
       </div>
 
       {/* ── Budget progress bar ────────────────────────────────────────────── */}
-      {monthlyBudget && budgetPct !== null && (
+      {activeBudget && budgetPct !== null && (
         <div>
           <div className="flex items-center justify-between mb-2">
             <span className="text-[11px] text-[#6a6a6a] uppercase tracking-widest font-medium">
@@ -922,7 +960,7 @@ export default function AnalyticsView({
                 {budgetPct.toFixed(0)}%
               </span>
               <span className="text-[11px] text-[#5e5e5e]">
-                of {formatCurrency(monthlyBudget, currency, true)}
+                of {formatCurrency(activeBudget, currency, true)}
               </span>
             </div>
           </div>
@@ -951,7 +989,7 @@ export default function AnalyticsView({
             </span>
             <span className="text-[10px] text-[#5e5e5e] tabular-nums">
               {formatCurrency(
-                Math.max(monthlyBudget - stats.total, 0),
+                Math.max(activeBudget - stats.total, 0),
                 currency,
                 true,
               )}{" "}
@@ -975,6 +1013,7 @@ export default function AnalyticsView({
                 spent={row.spent}
                 budget={row.budget}
                 currency={currency}
+                categories={categories}
               />
             ))}
           </div>
@@ -986,7 +1025,7 @@ export default function AnalyticsView({
           <SectionHeader title="Budget Variance" subtitle="target vs actual" />
           <div className="space-y-3">
             <GlobalVariance variance={budgetVariance.global} currency={currency} />
-            <CategoryVariance rows={budgetVariance.categories} currency={currency} />
+            <CategoryVariance rows={budgetVariance.categories} currency={currency} categories={categories} />
           </div>
         </div>
       )}
@@ -1000,7 +1039,7 @@ export default function AnalyticsView({
         totalExpenses={stats.count}
       />
 
-      <AnomalySection anomalies={anomalies} currency={currency} />
+      <AnomalySection anomalies={anomalies} currency={currency} categories={categories} />
 
       {/* ── 6-Month Trend ─────────────────────────────────────────────────── */}
       <div>
@@ -1047,6 +1086,7 @@ export default function AnalyticsView({
                 total={stats.total}
                 currency={currency}
                 rank={rank}
+                categories={categories}
               />
             ))}
 
@@ -1066,6 +1106,7 @@ export default function AnalyticsView({
                   total={stats.total}
                   currency={currency}
                   rank={sortedCategories.length}
+                  categories={categories}
                 />
               );
             })()}

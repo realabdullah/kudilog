@@ -11,7 +11,11 @@ import { useCallback, useRef, useState } from "react"
 import { db } from "../../db/db"
 import {
   useAllSettings,
+  useBudgetMutations,
+  useCategories,
   useCategoryBudgetMutations,
+  useCategoryMutations,
+  useMonthBudget,
   useRecurringTemplateMutations,
   useRecurringTemplates,
   useSettingMutation,
@@ -22,21 +26,19 @@ import {
   previewImport
 } from "../../utils/exportImport"
 import {
-  CATEGORIES,
   currentMonth,
   formatCurrency,
-  getCategoryEmoji,
   getCategoryLabel,
 } from "../../utils/formatters"
-import { syncRecurringExpensesToMonth } from "../../utils/recurring"
 import {
   Badge,
   ConfirmDialog,
   KudiIcon,
   KudiLogo,
   Modal,
+  Select,
   showToast,
-  Skeleton,
+  Skeleton
 } from "../ui/index"
 
 /**
@@ -73,16 +75,22 @@ function getErrorMessage(error) {
 // ─── Currency options ──────────────────────────────────────────────────────────
 
 const CURRENCIES = [
-  { code: "NGN", label: "Nigerian Naira", symbol: "₦" },
-  { code: "USD", label: "US Dollar", symbol: "$" },
-  { code: "EUR", label: "Euro", symbol: "€" },
-  { code: "GBP", label: "British Pound", symbol: "£" },
-  { code: "GHS", label: "Ghanaian Cedi", symbol: "₵" },
-  { code: "KES", label: "Kenyan Shilling", symbol: "KSh" },
-  { code: "ZAR", label: "South African Rand", symbol: "R" },
-  { code: "INR", label: "Indian Rupee", symbol: "₹" },
-  { code: "CAD", label: "Canadian Dollar", symbol: "C$" },
-  { code: "AUD", label: "Australian Dollar", symbol: "A$" },
+  { value: "NGN", label: "Nigerian Naira (₦)", sub: "₦", icon: "🇳🇬" },
+  { value: "USD", label: "US Dollar ($)", sub: "$", icon: "🇺🇸" },
+  { value: "EUR", label: "Euro (€)", sub: "€", icon: "🇪🇺" },
+  { value: "GBP", label: "British Pound (£)", sub: "£", icon: "🇬🇧" },
+  { value: "GHS", label: "Ghanaian Cedi (₵)", sub: "₵", icon: "🇬🇭" },
+  { value: "KES", label: "Kenyan Shilling (KSh)", sub: "KSh", icon: "🇰🇪" },
+  { value: "ZAR", label: "South African Rand (R)", sub: "R", icon: "🇿🇦" },
+  { value: "INR", label: "Indian Rupee (₹)", sub: "₹", icon: "🇮🇳" },
+  { value: "CAD", label: "Canadian Dollar (C$)", sub: "C$", icon: "🇨🇦" },
+  { value: "AUD", label: "Australian Dollar (A$)", sub: "A$", icon: "🇦🇺" },
+  { value: "JPY", label: "Japanese Yen (¥)", sub: "¥", icon: "🇯🇵" },
+  { value: "CNY", label: "Chinese Yuan (¥)", sub: "¥", icon: "🇨🇳" },
+  { value: "CHF", label: "Swiss Franc (Fr)", sub: "Fr", icon: "🇨🇭" },
+  { value: "AED", label: "UAE Dirham (د.إ)", sub: "د.إ", icon: "🇦🇪" },
+  { value: "SAR", label: "Saudi Riyal (﷼)", sub: "﷼", icon: "🇸🇦" },
+  { value: "QAR", label: "Qatari Riyal (﷼)", sub: "﷼", icon: "🇶🇦" },
 ];
 
 // ─── Section wrapper ───────────────────────────────────────────────────────────
@@ -506,12 +514,12 @@ function ImportPreviewModal({
 // ─── Budget input ──────────────────────────────────────────────────────────────
 
 /** @param {{ currentBudget?: number | null, currency: string, onSave: (value: number | null) => Promise<void> }} props */
-function BudgetInput({ currentBudget, currency, onSave }) {
+function BudgetInput({ currentBudget, currency, onSave, label = "Set limit" }) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState("");
 
   const currencySymbol =
-    CURRENCIES.find((c) => c.code === currency)?.symbol ?? currency;
+    CURRENCIES.find((c) => c.value === currency)?.sub ?? currency;
 
   const handleOpen = useCallback(() => {
     setValue(currentBudget ? String(currentBudget) : "");
@@ -606,7 +614,7 @@ function BudgetInput({ currentBudget, currency, onSave }) {
         transition-colors
       "
     >
-      {currentBudget ? formatCurrency(currentBudget, currency) : "Set limit"}
+      {currentBudget ? formatCurrency(currentBudget, currency) : label}
       <svg
         width="10"
         height="10"
@@ -626,12 +634,101 @@ function BudgetInput({ currentBudget, currency, onSave }) {
   );
 }
 
-/** @param {{
- *   currency: string,
- *   budgets: Record<string, number>,
- *   onSetBudget: (categoryId: string, amount: number) => Promise<void>,
- *   onClearBudget: (categoryId: string) => Promise<void>,
- * }} props */
+function CategoriesManager() {
+  const categories = useCategories() ?? [];
+  const { addCategory, deleteCategory } = useCategoryMutations();
+  const [newLabel, setNewLabel] = useState("");
+  const [newEmoji, setNewEmoji] = useState("📦");
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+
+  const emojis = [
+    "🍽️", "🚗", "🎬", "🛍️", "💊", "💡", "📚", "✨", "✈️", "📦", "🏠", "🎁", "💻", "🎨", "🏋️", "🐾",
+    "☕", "🍺", "🥂", "🍕", "🍔", "🍎", "🥦", "🍦", "🎂", "🎸", "🎮", "🕹️", "⚽", "🏀", "🚲", "🛴",
+    "📱", "🎧", "📸", "⌚", "🛠️", "🩹", "🧼", "👕", "👗", "👟", "👜", "💄", "💍", "👓", "🧢", "⛱️",
+    "💰", "💳", "📈", "📉", "📄", "📧", "📫", "📞", "🔔", "⭐", "🔥", "🌈", "❤️", "📍", "🛡️", "🔑"
+  ];
+
+  const handleAdd = async () => {
+    if (!newLabel.trim()) {
+      showToast({ message: "Enter a category name", type: "warning" });
+      return;
+    }
+    try {
+      await addCategory({ label: newLabel, emoji: newEmoji });
+      setNewLabel("");
+      setNewEmoji("📦");
+      showToast({ message: "Category added", type: "success" });
+    } catch (err) {
+      showToast({ message: "Failed to add category: " + getErrorMessage(err), type: "error" });
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-[#0d0d0d] border border-[#1a1a1a] rounded-xl p-4 space-y-3">
+        <div className="text-[13px] font-medium text-white">Add New Category</div>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+            className="w-11 h-11 shrink-0 bg-[#0a0a0a] border border-[#2a2a2a] rounded-xl flex items-center justify-center text-[20px] hover:border-[#3a3a3a] transition-colors"
+          >
+            {newEmoji}
+          </button>
+          <input
+            type="text"
+            value={newLabel}
+            onChange={(e) => setNewLabel(e.target.value)}
+            placeholder="Category name (e.g. Subscriptions)"
+            className="flex-1 bg-[#0a0a0a] border border-[#2a2a2a] rounded-xl px-3 text-[13px] text-white outline-none focus:border-[#6bbf4e]/50"
+          />
+          <button
+            onClick={handleAdd}
+            className="h-11 px-4 rounded-xl bg-[#6bbf4e] text-[#17311a] text-[13px] font-semibold hover:bg-[#7cd65e] transition-colors"
+          >
+            Add
+          </button>
+        </div>
+        {showEmojiPicker && (
+          <div className="grid grid-cols-8 gap-1.5 p-2 bg-[#0a0a0a] rounded-lg border border-[#1a1a1a]">
+            {emojis.map((e) => (
+              <button
+                key={e}
+                onClick={() => {
+                  setNewEmoji(e);
+                  setShowEmojiPicker(false);
+                }}
+                className={`w-8 h-8 rounded-lg flex items-center justify-center text-[18px] hover:bg-[#1a1a1a] transition-colors ${newEmoji === e ? "bg-[#6bbf4e]/20 ring-1 ring-[#6bbf4e]/30" : ""}`}
+              >
+                {e}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="bg-[#0d0d0d] border border-[#1a1a1a] rounded-xl overflow-hidden divide-y divide-[#131313]">
+        {categories.map((cat) => (
+          <div key={cat.id} className="px-4 py-3 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <span className="text-[18px]">{cat.emoji}</span>
+              <span className="text-[13px] font-medium text-[#ddd]">{cat.label}</span>
+            </div>
+            <button
+              onClick={() => deleteCategory(cat.id)}
+              className="p-2 rounded-lg text-red-500/60 hover:text-red-400 hover:bg-red-500/10 transition-all"
+            >
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M2.5 3.5h9M5.5 3.5V2.5a1 1 0 011-1h1a1 1 0 011 1v1M3.5 3.5l.5 8h6l.5-8" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function CategoryBudgetsEditor({
   currency,
   budgets,
@@ -641,19 +738,20 @@ function CategoryBudgetsEditor({
   /** @type {[Record<string, string>, import("react").Dispatch<import("react").SetStateAction<Record<string, string>>>]} */
   const [drafts, setDrafts] = useState({});
   const [saving, setSaving] = useState("");
+  const categories = useCategories() ?? [];
 
   const currencySymbol =
-    CURRENCIES.find((c) => c.code === currency)?.symbol ?? currency;
+    CURRENCIES.find((c) => c.value === currency)?.sub ?? currency;
 
   const handleSave = useCallback(
-    /** @param {string} categoryId */
-    async (categoryId) => {
-      const draftValue = String(drafts[categoryId] ?? "").trim();
+    /** @param {import("../../hooks/useExpenses").Category} cat */
+    async (cat) => {
+      const draftValue = String(drafts[cat.id] ?? "").trim();
       const parsed = Number(draftValue.replace(/,/g, ""));
 
       if (!draftValue) {
-        await onClearBudget(categoryId);
-        showToast({ message: `${getCategoryLabel(categoryId)} budget removed`, type: "info" });
+        await onClearBudget(cat.id);
+        showToast({ message: `${cat.label} budget removed`, type: "info" });
         return;
       }
 
@@ -662,15 +760,15 @@ function CategoryBudgetsEditor({
         return;
       }
 
-      setSaving(categoryId);
+      setSaving(cat.id);
       try {
-        await onSetBudget(categoryId, parsed);
+        await onSetBudget(cat.id, parsed);
         setDrafts((prev) => {
           const next = { ...prev };
-          delete next[categoryId];
+          delete next[cat.id];
           return next;
         });
-        showToast({ message: `${getCategoryLabel(categoryId)} budget updated`, type: "success" });
+        showToast({ message: `${cat.label} budget updated`, type: "success" });
       } catch (err) {
         showToast({ message: "Could not save category budget: " + getErrorMessage(err), type: "error" });
       } finally {
@@ -681,17 +779,17 @@ function CategoryBudgetsEditor({
   );
 
   const handleClear = useCallback(
-    /** @param {string} categoryId */
-    async (categoryId) => {
-      setSaving(categoryId);
+    /** @param {import("../../hooks/useExpenses").Category} cat */
+    async (cat) => {
+      setSaving(cat.id);
       try {
-        await onClearBudget(categoryId);
+        await onClearBudget(cat.id);
         setDrafts((prev) => {
           const next = { ...prev };
-          delete next[categoryId];
+          delete next[cat.id];
           return next;
         });
-        showToast({ message: `${getCategoryLabel(categoryId)} budget removed`, type: "info" });
+        showToast({ message: `${cat.label} budget removed`, type: "info" });
       } catch (err) {
         showToast({ message: "Could not remove budget: " + getErrorMessage(err), type: "error" });
       } finally {
@@ -711,7 +809,7 @@ function CategoryBudgetsEditor({
       </div>
 
       <div className="divide-y divide-[#131313]">
-        {CATEGORIES.map((cat) => {
+        {categories.map((cat) => {
           const currentValue = budgets?.[cat.id];
           const displayValue = drafts[cat.id] ?? (currentValue ? String(currentValue) : "");
           const isSaving = saving === cat.id;
@@ -719,10 +817,10 @@ function CategoryBudgetsEditor({
           return (
             <div key={cat.id} className="px-4 py-2.5 flex items-center gap-2.5">
               <span className="text-[14px]" aria-hidden>
-                {getCategoryEmoji(cat.id)}
+                {cat.emoji}
               </span>
               <span className="text-[12px] text-[#aaa] w-28 shrink-0 truncate">
-                {getCategoryLabel(cat.id)}
+                {cat.label}
               </span>
 
               <div className="relative flex-1 min-w-0">
@@ -742,7 +840,7 @@ function CategoryBudgetsEditor({
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       e.preventDefault();
-                      handleSave(cat.id);
+                      handleSave(cat);
                     }
                   }}
                   placeholder={currentValue ? String(currentValue) : "No limit"}
@@ -755,7 +853,7 @@ function CategoryBudgetsEditor({
               </div>
 
               <button
-                onClick={() => handleSave(cat.id)}
+                onClick={() => handleSave(cat)}
                 disabled={isSaving}
                 className="h-7 px-2 rounded-lg text-[11px] font-medium bg-[#1a1a1a] border border-[#222] text-[#888] hover:text-white hover:border-[#333] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
@@ -763,7 +861,7 @@ function CategoryBudgetsEditor({
               </button>
 
               <button
-                onClick={() => handleClear(cat.id)}
+                onClick={() => handleClear(cat)}
                 disabled={isSaving || !currentValue}
                 className="h-7 px-2 rounded-lg text-[11px] font-medium bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
@@ -819,7 +917,6 @@ function RecurringTemplatesEditor({
         category,
         startMonth,
       });
-      await syncRecurringExpensesToMonth(currentMonth());
       setName("");
       setAmount("");
       setCategory("");
@@ -838,9 +935,6 @@ function RecurringTemplatesEditor({
       setBusyId(id);
       try {
         await onToggle(id, enabled);
-        if (enabled) {
-          await syncRecurringExpensesToMonth(currentMonth());
-        }
       } catch (err) {
         showToast({ message: "Could not update recurring template: " + getErrorMessage(err), type: "error" });
       } finally {
@@ -908,7 +1002,7 @@ function RecurringTemplatesEditor({
             >
               No category
             </button>
-            {CATEGORIES.map((cat) => (
+            {(useCategories() ?? []).map((cat) => (
               <button
                 key={cat.id}
                 type="button"
@@ -991,6 +1085,11 @@ export default function SettingsView() {
     deleteRecurringTemplate,
   } = useRecurringTemplateMutations();
 
+  const [activeMonth, setActiveMonth] = useState(currentMonth());
+  const monthBudget = useMonthBudget(activeMonth);
+  const { setMonthBudget } = useBudgetMutations();
+  const categories = useCategories() ?? [];
+
   // ── Export state ──────────────────────────────────────────────────────────
   const [exportingCSV, setExportingCSV] = useState(false);
   const [exportingJSON, setExportingJSON] = useState(false);
@@ -1009,8 +1108,8 @@ export default function SettingsView() {
   const [clearingRecurring, setClearingRecurring] = useState(false);
 
   // ── Sub-screen navigation ──────────────────────────────────────────────────
-  /** @type {[null | "category-budgets" | "recurring" | "privacy", import("react").Dispatch<import("react").SetStateAction<null | "category-budgets" | "recurring" | "privacy">>]} */
-  const [subscreen, setSubscreen] = useState(/** @type {null | "category-budgets" | "recurring" | "privacy"} */ (null));
+  /** @type {[null | "category-budgets" | "recurring" | "privacy" | "categories", import("react").Dispatch<import("react").SetStateAction<null | "category-budgets" | "recurring" | "privacy" | "categories">>]} */
+  const [subscreen, setSubscreen] = useState(/** @type {null | "category-budgets" | "recurring" | "privacy" | "categories"} */ (null));
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
@@ -1231,90 +1330,129 @@ export default function SettingsView() {
     );
   }
 
+  if (subscreen === "categories") {
+    return (
+      <div className="space-y-5 pb-10">
+        <SubScreenHeader title="Categories" onBack={() => setSubscreen(null)} />
+        <CategoriesManager />
+      </div>
+    );
+  }
+
   return (
     <>
       <div className="space-y-7 pb-10">
         {/* ── Preferences ─────────────────────────────────────────────────── */}
         <Section title="Preferences">
-          {/* Currency */}
-          <div className="bg-[#0d0d0d] border border-[#1a1a1a] rounded-xl overflow-hidden">
-            <div className="px-4 py-3 border-b border-[#131313]">
-              <div className="text-[13px] font-medium text-[#ddd]">
-                Currency
-              </div>
-              <div className="text-[11px] text-[#666] mt-0.5">
-                Used for all amount displays
-              </div>
-            </div>
-            <div className="grid grid-cols-2 divide-x divide-y divide-[#131313]">
-              {CURRENCIES.map((c) => {
-                const isSelected = settings.currency === c.code;
-                return (
-                  <button
-                    key={c.code}
-                    onClick={() => handleCurrencyChange(c.code)}
-                    className={`
-                      flex items-center gap-2.5 px-3.5 py-2.5
-                      text-left transition-colors duration-150
-                      ${isSelected ? "bg-[#6bbf4e]/10" : "hover:bg-[#111]"}
-                    `}
-                  >
-                    <span
+          {/* Currency Card */}
+          <div className="space-y-2 px-1">
+            <div className="bg-[#0d0d0d] border border-[#1a1a1a] rounded-2xl shadow-sm">
+              {/* Primary Grid */}
+              <div className="grid grid-cols-2">
+                <div className="px-4 py-3 border-b border-[#131313] col-span-2 rounded-t-2xl">
+                  <div className="text-[13px] font-medium text-[#ddd]">
+                    Currency
+                  </div>
+                  <div className="text-[11px] text-[#666] mt-0.5">
+                    Used for all amount displays
+                  </div>
+                </div>
+
+                {CURRENCIES.slice(0, 4).map((c, idx) => {
+                  const selected = settings.currency === c.value;
+                  const isTop = idx < 2;
+                  const isLeft = idx % 2 === 0;
+                  
+                  return (
+                    <button
+                      key={c.value}
+                      onClick={() => handleCurrencyChange(c.value)}
                       className={`
-                        text-[15px] font-bold w-6 text-center tabular-nums shrink-0
-                        ${isSelected ? "text-[#6bbf4e]" : "text-[#5e5e5e]"}
+                        flex items-center gap-3 p-4 transition-all duration-200 text-left
+                        ${isTop ? "border-b border-[#1a1a1a]" : ""}
+                        ${isLeft ? "border-r border-[#1a1a1a]" : ""}
+                        ${selected ? "bg-[#6bbf4e]/5" : "hover:bg-white/[0.02]"}
                       `}
                     >
-                      {c.symbol}
-                    </span>
-                    <div className="min-w-0">
-                      <div
-                        className={`text-[12px] font-medium leading-tight truncate ${isSelected ? "text-[#6bbf4e]" : "text-[#888]"}`}
-                      >
-                        {c.code}
+                      <span className="text-[20px]">{c.icon}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className={`text-[13px] font-bold leading-tight ${selected ? "text-[#6bbf4e]" : "text-[#bcbcbc]"}`}>
+                          {c.value}
+                        </div>
+                        <div className="text-[11px] text-[#555]">{c.sub}</div>
                       </div>
-                      <div className="text-[10px] text-[#5e5e5e] truncate">
-                        {c.label}
-                      </div>
-                    </div>
-                    {isSelected && (
-                      <svg
-                        width="12"
-                        height="12"
-                        viewBox="0 0 12 12"
-                        fill="none"
-                        className="ml-auto shrink-0 text-[#6bbf4e]"
-                      >
-                        <path
-                          d="M1.5 6l3 3 6-6"
-                          stroke="currentColor"
-                          strokeWidth="1.6"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                    )}
-                  </button>
-                );
-              })}
+                      {selected && (
+                        <div className="w-1.5 h-1.5 rounded-full bg-[#6bbf4e]" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Others Dropdown — integrated into the card */}
+              <div className="border-t border-[#1a1a1a] p-3 bg-[#0d0d0d] rounded-b-2xl">
+                <Select
+                  placeholder="More options…"
+                  value={CURRENCIES.slice(0, 4).some(c => c.value === settings.currency) ? "" : settings.currency}
+                  onChange={handleCurrencyChange}
+                  options={CURRENCIES}
+                  className="w-full"
+                />
+              </div>
             </div>
           </div>
 
           {/* Monthly budget */}
-          <SettingRow
-            label="Monthly Budget"
-            description={
-              settings.monthlyBudget
-                ? `Limit set — progress shown in Analytics`
-                : "Set a spending limit to track budget usage"
-            }
-          >
-            <BudgetInput
-              currentBudget={settings.monthlyBudget}
-              currency={settings.currency ?? "NGN"}
-              onSave={handleBudgetSave}
-            />
-          </SettingRow>
+          <div className="bg-[#0d0d0d] border border-[#1a1a1a] rounded-xl overflow-hidden p-4 space-y-4">
+            <div>
+              <div className="text-[13px] font-medium text-[#ddd]">Budget Management</div>
+              <div className="text-[11px] text-[#666] mt-0.5 leading-relaxed">
+                Set global defaults or specific overrides for individual months
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between p-3 bg-[#0a0a0a] border border-[#1a1a1a] rounded-xl">
+                <div>
+                  <div className="text-[12px] font-medium text-[#aaa]">Global Default</div>
+                  <div className="text-[10px] text-[#666]">Fallback for all months</div>
+                </div>
+                <BudgetInput
+                  currentBudget={settings.monthlyBudget}
+                  currency={settings.currency ?? "NGN"}
+                  onSave={handleBudgetSave}
+                />
+              </div>
+
+              <div className="flex items-center justify-between p-3 bg-[#0a0a0a] border border-[#1a1a1a] rounded-xl">
+                <div className="flex-1 min-w-0 pr-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    <input
+                      type="month"
+                      value={activeMonth}
+                      onChange={(e) => setActiveMonth(e.target.value)}
+                      className="bg-transparent text-[12px] font-medium text-[#aaa] border-none outline-none p-0 w-24"
+                    />
+                    <Badge variant="accent" size="xs">Override</Badge>
+                  </div>
+                  <div className="text-[10px] text-[#666]">Budget for this specific month</div>
+                </div>
+                <BudgetInput
+                  label="Override"
+                  currentBudget={monthBudget}
+                  currency={settings.currency ?? "NGN"}
+                  onSave={(val) => setMonthBudget(activeMonth, val)}
+                />
+              </div>
+            </div>
+          </div>
+
+          <SettingNavRow
+            label="Categories"
+            description="Manage custom categories and icons"
+            badge={categories.length || null}
+            onClick={() => setSubscreen("categories")}
+          />
 
           <SettingNavRow
             label="Category Budgets"

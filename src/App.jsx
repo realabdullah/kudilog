@@ -17,6 +17,7 @@ import { KudiLogo, Modal, ToastContainer, showToast } from "./components/ui/inde
 import { seedDefaultSettings } from "./db/db"
 import {
   useAllSettings,
+  useMonthBudget,
   useMonthExpenses,
   useMonthStats,
   useRecurringTemplates,
@@ -28,6 +29,7 @@ import {
   isCurrentMonth,
 } from "./utils/formatters"
 import { syncRecurringExpensesToMonth } from "./utils/recurring"
+import { runOnceDedupe } from "./utils/dedupe"
 
 const recurringAutomationEnabled =
   (/** @type {any} */ (import.meta)).env?.VITE_RECURRING_AUTOMATION !==
@@ -153,9 +155,11 @@ function MonthlyHero({ month, stats, currency, monthlyBudget }) {
 // ─── Dashboard view ────────────────────────────────────────────────────────────
 
 /** @param {{ month: string, currency: string, monthlyBudget: number | null }} props */
-function DashboardView({ month, currency, monthlyBudget }) {
+function DashboardView({ month, currency, globalBudget }) {
   const expenses = useMonthExpenses(month);
   const stats = useMonthStats(month);
+  const monthBudget = useMonthBudget(month);
+  const activeBudget = monthBudget !== null ? monthBudget : globalBudget;
 
   return (
     <div>
@@ -164,7 +168,7 @@ function DashboardView({ month, currency, monthlyBudget }) {
         month={month}
         stats={stats}
         currency={currency}
-        monthlyBudget={monthlyBudget}
+        monthlyBudget={activeBudget}
       />
 
       {/* Fast expense input */}
@@ -298,7 +302,9 @@ export default function App() {
 
   // ── Seed default settings on first load ──────────────────────────────────
   useEffect(() => {
-    seedDefaultSettings().catch(console.error);
+    seedDefaultSettings()
+      .then(() => runOnceDedupe())
+      .catch(console.error);
   }, []);
 
   // ── Apply theme from settings ─────────────────────────────────────────────
@@ -419,17 +425,12 @@ export default function App() {
           <DashboardView
             month={month}
             currency={currency}
-            monthlyBudget={monthlyBudget}
+            globalBudget={monthlyBudget}
           />
         )}
 
         {appReady && activeTab === "analytics" && (
-          <AnalyticsView
-            month={month}
-            currency={currency}
-            monthlyBudget={monthlyBudget}
-            categoryBudgets={categoryBudgets}
-          />
+          <AnalyticsView month={month} />
         )}
 
         {appReady && activeTab === "settings" && <SettingsView />}

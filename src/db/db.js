@@ -2,9 +2,9 @@ import Dexie from "dexie";
 
 // ─── Schema Version History ───────────────────────────────────────────────────
 // v1: initial schema – expenses + settings tables
-// v2: recurring templates table + recurringId expense index
+// v3: categories table + budgets table (month-specific)
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 export const db = new Dexie("kudilog");
 const typedDb = /** @type {any} */ (db);
@@ -23,6 +23,15 @@ db.version(2).stores({
   settings: "id",
   recurring:
     "id, enabled, frequency, startMonth, lastGeneratedMonth, createdAt, updatedAt",
+});
+
+db.version(3).stores({
+  expenses: "id, month, category, createdAt, updatedAt, recurringId",
+  settings: "id",
+  recurring:
+    "id, enabled, frequency, startMonth, lastGeneratedMonth, createdAt, updatedAt",
+  categories: "id, label, emoji, createdAt",
+  budgets: "id", // id = month (YYYY-MM)
 });
 
 // ─── Typed helpers ─────────────────────────────────────────────────────────────
@@ -72,12 +81,31 @@ export async function seedDefaultSettings() {
     { id: "hideMonetaryValues", value: false },
   ];
 
-  await typedDb.transaction("rw", typedDb.settings, async () => {
+  await typedDb.transaction("rw", typedDb.settings, typedDb.categories, async () => {
+    // 1. Settings
     for (const def of defaults) {
       const existing = await typedDb.settings.get(def.id);
       if (!existing) {
         await typedDb.settings.put(def);
       }
+    }
+
+    // 2. Default Categories
+    const catCount = await typedDb.categories.count();
+    if (catCount === 0) {
+      const defaultCategories = [
+        { id: "food", label: "Food & Dining", emoji: "🍽️", createdAt: new Date().toISOString() },
+        { id: "transport", label: "Transport", emoji: "🚗", createdAt: new Date().toISOString() },
+        { id: "entertainment", label: "Entertainment", emoji: "🎬", createdAt: new Date().toISOString() },
+        { id: "shopping", label: "Shopping", emoji: "🛍️", createdAt: new Date().toISOString() },
+        { id: "health", label: "Health", emoji: "💊", createdAt: new Date().toISOString() },
+        { id: "bills", label: "Bills & Utilities", emoji: "💡", createdAt: new Date().toISOString() },
+        { id: "education", label: "Education", emoji: "📚", createdAt: new Date().toISOString() },
+        { id: "personal", label: "Personal Care", emoji: "✨", createdAt: new Date().toISOString() },
+        { id: "travel", label: "Travel", emoji: "✈️", createdAt: new Date().toISOString() },
+        { id: "other", label: "Other", emoji: "📦", createdAt: new Date().toISOString() },
+      ];
+      await typedDb.categories.bulkAdd(defaultCategories);
     }
   });
 }

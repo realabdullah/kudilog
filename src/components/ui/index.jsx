@@ -1,6 +1,6 @@
 // ─── Shared UI Primitives ──────────────────────────────────────────────────────
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react"
 
 // ─── Modal ─────────────────────────────────────────────────────────────────────
 
@@ -484,6 +484,109 @@ export function Button({
       {loading ? <Spinner size={14} /> : null}
       {children}
     </button>
+  );
+}
+
+// ─── Select ────────────────────────────────────────────────────────────────────
+
+/**
+ * Custom dropdown select component.
+ *
+ * @param {{
+ *   value: string,
+ *   onChange: (value: string) => void,
+ *   options: Array<{ value: string, label: string, icon?: React.ReactNode, sub?: string }>,
+ *   placeholder?: string,
+ *   className?: string,
+ *   label?: string,
+ * }} props
+ */
+export function Select({ value, onChange, options, placeholder = "Select...", className = "", label }) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef(null);
+
+  const selectedOption = options.find((o) => o.value === value);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (/** @type {MouseEvent} */ e) => {
+      if (containerRef.current && !containerRef.current.contains(/** @type {Node} */ (e.target))) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  return (
+    <div ref={containerRef} className={`relative ${className}`}>
+      {label && (
+        <label className="block text-[11px] font-semibold text-[#6a6a6a] uppercase tracking-widest mb-1.5 px-1">
+          {label}
+        </label>
+      )}
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className={`
+          w-full flex items-center justify-between gap-3 px-3.5 h-11
+          bg-[#0d0d0d] light:bg-white border border-[#1a1a1a] light:border-[#ddd] rounded-xl
+          hover:border-[#2a2a2a] light:hover:border-[#ccc] transition-all duration-200
+          text-left
+          ${open ? "ring-2 ring-[#6bbf4e]/20 border-[#6bbf4e]/40" : ""}
+        `}
+      >
+        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+          {selectedOption?.icon && (
+            <span className="shrink-0">{selectedOption.icon}</span>
+          )}
+          <span className={`text-[13px] font-medium truncate flex-1 ${selectedOption ? "text-[#ddd]" : "text-[#555]"}`}>
+            {selectedOption ? selectedOption.label : placeholder}
+          </span>
+        </div>
+        <svg
+          width="12"
+          height="12"
+          viewBox="0 0 12 12"
+          fill="none"
+          className={`shrink-0 text-[#444] transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+        >
+          <path d="M2.5 4.5l3.5 3.5 3.5-3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="absolute top-full left-0 right-0 mt-1.5 z-50 bg-[#111] light:bg-white border border-[#1f1f1f] light:border-[#ddd] rounded-xl shadow-2xl shadow-black/60 py-1.5 max-h-64 overflow-y-auto animate-scale-in origin-top">
+          {options.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => {
+                onChange(opt.value);
+                setOpen(false);
+              }}
+              className={`
+                w-full flex items-center gap-3 px-3.5 py-2.5 text-left transition-colors
+                ${opt.value === value 
+                  ? "bg-[#6bbf4e]/10" 
+                  : "hover:bg-[#151515] hover:text-white transition-colors"
+                }
+              `}
+            >
+              {opt.icon && <span className="shrink-0 text-[16px]">{opt.icon}</span>}
+              <span className={`text-[13px] font-medium flex-1 truncate ${opt.value === value ? "text-[#6bbf4e]" : "text-[#bcbcbc]"}`}>
+                {opt.label}
+              </span>
+              {opt.value === value && (
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="text-[#6bbf4e] shrink-0">
+                  <path d="M2 6l2.5 2.5L10 3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 

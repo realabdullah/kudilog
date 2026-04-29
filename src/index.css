@@ -1,4 +1,4 @@
-@import "tailwindcss";
+ @import "tailwindcss";
 
 /* ─── Viewport & PWA safe areas ───────────────────────────────────────────── */
 
@@ -439,6 +439,9 @@ html.light .bg-\[\#333\] {
 html.light .bg-\[\#444\] {
     background-color: #cccccc;
 }
+html.light .bg-\[\#0b0b0b\] {
+    background-color: #f7f7f5;
+}
 
 /* ── Header & nav backdrop (opacity variant) ──────────────────────────────── */
 
@@ -475,6 +478,9 @@ html.light .border-\[\#333\] {
 html.light .border-\[\#3a3a3a\] {
     border-color: #aaaaaa;
 }
+html.light .border-\[\#171717\] {
+    border-color: #e6e6e4;
+}
 
 /* ── Divide utilities ─────────────────────────────────────────────────────── */
 
@@ -508,6 +514,12 @@ html.light .text-\[\#ccc\] {
 html.light .text-\[\#c0c0c0\] {
     color: #252525;
 }
+html.light .text-\[\#bcbcbc\] {
+    color: #252525;
+}
+html.light .text-\[\#d0d0d0\] {
+    color: #111111;
+}
 
 /* Muted-1 */
 html.light .text-\[\#a0a0a0\] {
@@ -516,7 +528,19 @@ html.light .text-\[\#a0a0a0\] {
 
 /* Muted-2 */
 html.light .text-\[\#888\] {
-    color: #4d4d4d;
+    color: #4a4a4a;
+}
+html.light .text-\[\#5a5a5a\] {
+    color: #5a5a5a; /* This is already grey enough, but let's make it consistent */
+}
+html.light .text-\[\#4a4a4a\] {
+    color: #666666;
+}
+html.light .text-\[\#5e5e5e\] {
+    color: #4a4a4a;
+}
+html.light .text-\[\#6a6a6a\] {
+    color: #4a4a4a;
 }
 html.light .text-\[\#777\] {
     color: #4d4d4d;
@@ -662,6 +686,9 @@ html.light .bg-\[\#2a2a2a\].rounded-t-sm {
 /* hover:bg-[#111] maps to #ffffff in light mode (the card bg), making the
    hover invisible. Override to a subtle warm grey so the hover is visible.    */
 html.light .hover\:bg-\[\#111\]:hover {
+    background-color: #ebebea;
+}
+html.light .hover\:bg-\[\#151515\]:hover {
     background-color: #ebebea;
 }
 
