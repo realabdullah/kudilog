@@ -40,6 +40,7 @@ import {
   showToast,
   Skeleton
 } from "../ui/index"
+import { LockSettingsEditor } from "./LockSettingsEditor"
 
 /**
  * @typedef {{
@@ -1092,7 +1093,7 @@ export default function SettingsView() {
 
   // ── Export state ──────────────────────────────────────────────────────────
   const [exportingCSV, setExportingCSV] = useState(false);
-  const [exportingJSON, setExportingJSON] = useState(false);
+  // const [exportingJSON, setExportingJSON] = useState(false);
 
   // ── Import state ──────────────────────────────────────────────────────────
   const [importPreview, setImportPreview] = useState(/** @type {ImportPreview | null} */ (null));
@@ -1339,6 +1340,15 @@ export default function SettingsView() {
     );
   }
 
+  if (subscreen === "app-lock") {
+    return (
+      <div className="space-y-5 pb-10">
+        <SubScreenHeader title="App Lock" onBack={() => setSubscreen(null)} />
+        <LockSettingsEditor />
+      </div>
+    );
+  }
+
   return (
     <>
       <div className="space-y-7 pb-10">
@@ -1486,6 +1496,15 @@ export default function SettingsView() {
           </SettingRow>
         </Section>
 
+        {/* ── Security ──────────────────────────────────────────────────────── */}
+        <Section title="Security">
+          <SettingNavRow
+            label="App Lock"
+            description="Secure the app with a PIN and recovery questions"
+            onClick={() => setSubscreen("app-lock")}
+          />
+        </Section>
+
         {/* ── Data ────────────────────────────────────────────────────────── */}
         <Section title="Data">
           {/* Export */}
@@ -1548,6 +1567,26 @@ export default function SettingsView() {
               {exportingCSV ? "Exporting…" : "Export CSV"}
             </button>
           </SettingRow>
+
+          {/* <SettingRow
+            label="Export Backup (JSON)"
+            description="Download spendings and budget data for safekeeping"
+          >
+            <button
+              onClick={handleExportJSON}
+              disabled={exportingJSON}
+              className="
+                flex items-center gap-1.5 h-8 px-3 rounded-lg
+                text-[12px] font-medium
+                bg-[#1a1a1a] border border-[#222] text-[#888]
+                hover:text-white hover:border-[#333]
+                disabled:opacity-40 disabled:cursor-not-allowed
+                transition-colors
+              "
+            >
+              {exportingJSON ? "Exporting…" : "Export JSON"}
+            </button>
+          </SettingRow> */}
 
           {/* <SettingRow
             label="Export backup (JSON)"

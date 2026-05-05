@@ -79,33 +79,95 @@ export async function seedDefaultSettings() {
     { id: "categoryBudgets", value: {} }, // { [categoryId]: number }
     { id: "theme", value: "dark" },
     { id: "hideMonetaryValues", value: false },
+    { id: "lock.enabled", value: false },
+    { id: "lock.pinHash", value: null },
+    { id: "lock.pinSalt", value: null },
+    { id: "lock.pinParams", value: null },
+    { id: "lock.securityQuestions", value: null },
+    { id: "lock.sessionTimeoutMinutes", value: 5 },
+    { id: "lock.lockedUntil", value: null },
   ];
 
-  await typedDb.transaction("rw", typedDb.settings, typedDb.categories, async () => {
-    // 1. Settings
-    for (const def of defaults) {
-      const existing = await typedDb.settings.get(def.id);
-      if (!existing) {
-        await typedDb.settings.put(def);
+  await typedDb.transaction(
+    "rw",
+    typedDb.settings,
+    typedDb.categories,
+    async () => {
+      // 1. Settings
+      for (const def of defaults) {
+        const existing = await typedDb.settings.get(def.id);
+        if (!existing) {
+          await typedDb.settings.put(def);
+        }
       }
-    }
 
-    // 2. Default Categories
-    const catCount = await typedDb.categories.count();
-    if (catCount === 0) {
-      const defaultCategories = [
-        { id: "food", label: "Food & Dining", emoji: "🍽️", createdAt: new Date().toISOString() },
-        { id: "transport", label: "Transport", emoji: "🚗", createdAt: new Date().toISOString() },
-        { id: "entertainment", label: "Entertainment", emoji: "🎬", createdAt: new Date().toISOString() },
-        { id: "shopping", label: "Shopping", emoji: "🛍️", createdAt: new Date().toISOString() },
-        { id: "health", label: "Health", emoji: "💊", createdAt: new Date().toISOString() },
-        { id: "bills", label: "Bills & Utilities", emoji: "💡", createdAt: new Date().toISOString() },
-        { id: "education", label: "Education", emoji: "📚", createdAt: new Date().toISOString() },
-        { id: "personal", label: "Personal Care", emoji: "✨", createdAt: new Date().toISOString() },
-        { id: "travel", label: "Travel", emoji: "✈️", createdAt: new Date().toISOString() },
-        { id: "other", label: "Other", emoji: "📦", createdAt: new Date().toISOString() },
-      ];
-      await typedDb.categories.bulkAdd(defaultCategories);
-    }
-  });
+      // 2. Default Categories
+      const catCount = await typedDb.categories.count();
+      if (catCount === 0) {
+        const defaultCategories = [
+          {
+            id: "food",
+            label: "Food & Dining",
+            emoji: "🍽️",
+            createdAt: new Date().toISOString(),
+          },
+          {
+            id: "transport",
+            label: "Transport",
+            emoji: "🚗",
+            createdAt: new Date().toISOString(),
+          },
+          {
+            id: "entertainment",
+            label: "Entertainment",
+            emoji: "🎬",
+            createdAt: new Date().toISOString(),
+          },
+          {
+            id: "shopping",
+            label: "Shopping",
+            emoji: "🛍️",
+            createdAt: new Date().toISOString(),
+          },
+          {
+            id: "health",
+            label: "Health",
+            emoji: "💊",
+            createdAt: new Date().toISOString(),
+          },
+          {
+            id: "bills",
+            label: "Bills & Utilities",
+            emoji: "💡",
+            createdAt: new Date().toISOString(),
+          },
+          {
+            id: "education",
+            label: "Education",
+            emoji: "📚",
+            createdAt: new Date().toISOString(),
+          },
+          {
+            id: "personal",
+            label: "Personal Care",
+            emoji: "✨",
+            createdAt: new Date().toISOString(),
+          },
+          {
+            id: "travel",
+            label: "Travel",
+            emoji: "✈️",
+            createdAt: new Date().toISOString(),
+          },
+          {
+            id: "other",
+            label: "Other",
+            emoji: "📦",
+            createdAt: new Date().toISOString(),
+          },
+        ];
+        await typedDb.categories.bulkAdd(defaultCategories);
+      }
+    },
+  );
 }

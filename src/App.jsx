@@ -12,6 +12,7 @@ import AnalyticsView from "./components/analytics/AnalyticsView"
 import ExpenseInput from "./components/expenses/ExpenseInput"
 import ExpenseList from "./components/expenses/ExpenseList"
 import AppLayout from "./components/layout/AppLayout"
+import LockScreen from "./components/lock/LockScreen"
 import SettingsView from "./components/settings/SettingsView"
 import { KudiLogo, Modal, ToastContainer, showToast } from "./components/ui/index"
 import { seedDefaultSettings } from "./db/db"
@@ -22,14 +23,16 @@ import {
   useMonthStats,
   useRecurringTemplates,
 } from "./hooks/useExpenses"
+import { useLockSettings } from "./hooks/useLock"
+import { runOnceDedupe } from "./utils/dedupe"
 import {
   currentMonth,
   formatCurrency,
   formatMonthLabel,
   isCurrentMonth,
 } from "./utils/formatters"
+import { validateLockConfig } from "./utils/lockUtils"
 import { syncRecurringExpensesToMonth } from "./utils/recurring"
-import { runOnceDedupe } from "./utils/dedupe"
 
 const recurringAutomationEnabled =
   (/** @type {any} */ (import.meta)).env?.VITE_RECURRING_AUTOMATION !==
@@ -292,7 +295,6 @@ export default function App() {
   const recurringTemplates = useRecurringTemplates();
   const currency = settings?.currency ?? "NGN";
   const monthlyBudget = settings?.monthlyBudget ?? null;
-  const categoryBudgets = settings?.categoryBudgets ?? {};
 
   // ── Minimum splash duration (prevents UI flicker) ─────────────────────────
   useEffect(() => {
@@ -352,18 +354,50 @@ export default function App() {
     setHeadMeta('meta[name="twitter:description"]', currentMeta.description)
   }, [activeTab, month])
 
-  const appReady = settings !== undefined && minSplashDone;
+  const lockSettings = useLockSettings();
+  const [userUnlocked, setUserUnlocked] = useState(false);
+
+  const needsLock = lockSettings !== undefined && lockSettings.enabled && validateLockConfig(lockSettings);
+  // If no lock is configured, auto-unlock. Otherwise require explicit unlock.
+  const unlockSession = !needsLock || userUnlocked;
+  const isLocked = needsLock && !unlockSession;
+  const appReady = settings !== undefined && lockSettings !== undefined && minSplashDone;
+
+  // Timeout logic
+  useEffect(() => {
+    if (!isLocked && lockSettings?.sessionTimeoutMinutes) {
+      let hiddenTime = 0;
+      
+      const handleVisibilityChange = () => {
+        if (document.hidden) {
+          hiddenTime = Date.now();
+        } else {
+          if (hiddenTime) {
+            const diffMin = (Date.now() - hiddenTime) / 1000 / 60;
+            if (diffMin >= lockSettings.sessionTimeoutMinutes) {
+              setUserUnlocked(false);
+            }
+          }
+          hiddenTime = 0;
+        }
+      };
+
+      document.addEventListener("visibilitychange", handleVisibilityChange);
+      return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+    }
+  }, [isLocked, lockSettings?.sessionTimeoutMinutes]);
 
   useEffect(() => {
     if (
       !recurringAutomationEnabled ||
       !appReady ||
+      isLocked ||
       recurringTemplates === undefined
     ) {
       return;
     }
     syncRecurringExpensesToMonth(currentMonth()).catch(console.error);
-  }, [appReady, recurringTemplates]);
+  }, [appReady, isLocked, recurringTemplates]);
 
   useEffect(() => {
     const isStandalone =
@@ -415,26 +449,30 @@ export default function App() {
     <>
       {!appReady ? <SplashScreen /> : null}
 
-      <AppLayout
-        activeTab={activeTab}
-        onTabChange={(tab) => setActiveTab(/** @type {"dashboard" | "analytics" | "settings"} */ (tab))}
-        month={month}
-        onMonthChange={setMonth}
-      >
-        {appReady && activeTab === "dashboard" && (
-          <DashboardView
-            month={month}
-            currency={currency}
-            globalBudget={monthlyBudget}
-          />
-        )}
+      {appReady && isLocked ? (
+        <LockScreen lockSettings={lockSettings} onUnlock={() => setUserUnlocked(true)} />
+      ) : (
+        <AppLayout
+          activeTab={activeTab}
+          onTabChange={(tab) => setActiveTab(/** @type {"dashboard" | "analytics" | "settings"} */ (tab))}
+          month={month}
+          onMonthChange={setMonth}
+        >
+          {appReady && activeTab === "dashboard" && (
+            <DashboardView
+              month={month}
+              currency={currency}
+              globalBudget={monthlyBudget}
+            />
+          )}
 
-        {appReady && activeTab === "analytics" && (
-          <AnalyticsView month={month} />
-        )}
+          {appReady && activeTab === "analytics" && (
+            <AnalyticsView month={month} />
+          )}
 
-        {appReady && activeTab === "settings" && <SettingsView />}
-      </AppLayout>
+          {appReady && activeTab === "settings" && <SettingsView />}
+        </AppLayout>
+      )}
 
       {/* Global toast notifications */}
       <ToastContainer />
