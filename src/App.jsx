@@ -157,7 +157,7 @@ function MonthlyHero({ month, stats, currency, monthlyBudget }) {
 
 // ─── Dashboard view ────────────────────────────────────────────────────────────
 
-/** @param {{ month: string, currency: string, monthlyBudget: number | null }} props */
+/** @param {{ month: string, currency: string, globalBudget: number | null }} props */
 function DashboardView({ month, currency, globalBudget }) {
   const expenses = useMonthExpenses(month);
   const stats = useMonthStats(month);
@@ -171,7 +171,7 @@ function DashboardView({ month, currency, globalBudget }) {
         month={month}
         stats={stats}
         currency={currency}
-        monthlyBudget={activeBudget}
+        monthlyBudget={activeBudget ?? null}
       />
 
       {/* Fast expense input */}

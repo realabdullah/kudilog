@@ -36,6 +36,14 @@ export function generateSalt(length = 16) {
 }
 
 /**
+ * @typedef {{ iterations: number, hash: string, length: number }} PinParams
+ */
+
+/**
+ * @typedef {{ enabled: boolean, pinHash: string | null, pinSalt: string | null, pinParams: PinParams | null, securityQuestions?: Array<{ question: string, answerHash: string, salt: string }> | null, sessionTimeoutMinutes?: number, lockedUntil?: number | null }} LockSettings
+ */
+
+/**
  * PBKDF2 parameters for PIN/Answer hashing
  */
 export const DEFAULT_PIN_PARAMS = {
@@ -48,7 +56,7 @@ export const DEFAULT_PIN_PARAMS = {
  * Hashes a plaintext input (PIN or normalized answer) with a salt using PBKDF2.
  * @param {string} plaintext
  * @param {string} salt (base64)
- * @param {object} params
+ * @param {PinParams} params
  * @returns {Promise<string>} Base64 encoded hash
  */
 export async function hashInput(plaintext, salt, params = DEFAULT_PIN_PARAMS) {
@@ -81,7 +89,7 @@ export async function hashInput(plaintext, salt, params = DEFAULT_PIN_PARAMS) {
  * @param {string} plaintext
  * @param {string} storedHash (base64)
  * @param {string} salt (base64)
- * @param {object} params
+ * @param {PinParams} params
  * @returns {Promise<boolean>}
  */
 export async function verifyInput(
@@ -123,6 +131,12 @@ export const verifyPin = verifyInput;
 /**
  * Helper strictly for Security Answer hashing.
  */
+/**
+ * @param {string} answer
+ * @param {string} salt
+ * @param {PinParams} params
+ * @returns {Promise<string>}
+ */
 export async function hashSecurityAnswer(
   answer,
   salt,
@@ -133,6 +147,13 @@ export async function hashSecurityAnswer(
 
 /**
  * Helper strictly for Security Answer verification.
+ */
+/**
+ * @param {string} answer
+ * @param {string} storedHash
+ * @param {string} salt
+ * @param {PinParams} params
+ * @returns {Promise<boolean>}
  */
 export async function verifySecurityAnswer(
   answer,
@@ -145,7 +166,7 @@ export async function verifySecurityAnswer(
 
 /**
  * Validates the structure of the lock settings to prevent malformed data from bricking the app.
- * @param {object} lockSettings
+ * @param {LockSettings} lockSettings
  * @returns {boolean} true if structurally valid
  */
 export function validateLockConfig(lockSettings) {

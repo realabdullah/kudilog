@@ -40,7 +40,7 @@ export default function LockScreen({ lockSettings, onUnlock }) {
     return () => clearInterval(t);
   }, [cooldown]);
 
-  const handlePinSubmit = async (e) => {
+  const handlePinSubmit = async (/** @type {import("react").FormEvent} */ e) => {
     e.preventDefault();
     if (loading || cooldown > 0 || !pin) return;
     
@@ -72,7 +72,7 @@ export default function LockScreen({ lockSettings, onUnlock }) {
     }
   };
 
-  const handleRecoverySubmit = async (e) => {
+  const handleRecoverySubmit = async (/** @type {import("react").FormEvent} */ e) => {
     e.preventDefault();
     if (loading || cooldown > 0) return;
 

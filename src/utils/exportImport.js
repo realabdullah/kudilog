@@ -36,7 +36,8 @@ const typedDb = /** @type {any} */ (db);
 
 /** @typedef {{ id: string, value: any }} ExportSetting */
 /** @typedef {{ id: string, name: string, amount: number, category: string, frequency: "monthly", startMonth: string, enabled: boolean, lastGeneratedMonth: string | null, createdAt: string, updatedAt: string }} ExportRecurring */
-/** @typedef {{ meta: { appName: string, schemaVersion: number, exportedAt: string, recordCount: { expenses: number, settings: number, recurring: number } }, data: { expenses: ExportExpense[], settings: ExportSetting[], recurring: ExportRecurring[] } }} ExportPayload */
+/** @typedef {{ id: string, month: string, amount: number }} ExportBudget */
+/** @typedef {{ meta: { appName: string, schemaVersion: number, exportedAt: string, recordCount: { expenses: number, settings: number, recurring: number, budgets: number } }, data: { expenses: ExportExpense[], settings: ExportSetting[], recurring: ExportRecurring[], budgets: ExportBudget[] } }} ExportPayload */
 /** @typedef {{ format: string, meta: Object | null, expenseCount: number, settingCount: number, valid: boolean, error: string | null, skippedCount: number, sampleRows: Array<{ name: string, amount: number, category?: string, month?: string, createdAt?: string }>, warnings: string[] }} ImportPreviewResult */
 
 /** @param {unknown} error */
@@ -321,7 +322,7 @@ export async function buildExportPayload() {
     typedDb.budgets ? typedDb.budgets.toArray() : [],
   ]);
 
-  const settings = allSettings.filter((s) => !s.id.startsWith("lock."));
+  const settings = allSettings.filter((/** @type {ExportSetting} */ s) => !s.id.startsWith("lock."));
 
   return {
     meta: {
@@ -408,7 +409,7 @@ export async function exportToCSV() {
  * Throws a descriptive Error if anything is wrong.
  *
  * @param {unknown} payload
- * @returns {{ expenses: ExportExpense[], settings: ExportSetting[], recurring: ExportRecurring[], meta: Object }}
+ * @returns {{ expenses: ExportExpense[], settings: ExportSetting[], recurring: ExportRecurring[], budgets: ExportBudget[], meta: Object }}
  */
 function validatePayload(payload) {
   if (!payload || typeof payload !== "object") {
@@ -475,7 +476,7 @@ function validatePayload(payload) {
     meta: filePayload.meta,
     expenses: filePayload.data.expenses,
     settings: Array.isArray(filePayload.data.settings)
-      ? filePayload.data.settings.filter((s) => !s.id.startsWith("lock."))
+      ? filePayload.data.settings.filter((/** @type {ExportSetting} */ s) => !s.id.startsWith("lock."))
       : [],
     recurring: Array.isArray(filePayload.data.recurring)
       ? filePayload.data.recurring
@@ -560,8 +561,8 @@ export async function importFromJSON(file, mode = "merge") {
         // delete all non-lock settings
         const existingSettings = await typedDb.settings.toArray();
         const nonLockSettingIds = existingSettings
-          .filter(s => !s.id.startsWith("lock."))
-          .map(s => s.id);
+          .filter((/** @type {ExportSetting} */ s) => !s.id.startsWith("lock."))
+          .map((/** @type {ExportSetting} */ s) => s.id);
         await typedDb.settings.bulkDelete(nonLockSettingIds);
 
         if (typedDb.recurring) await typedDb.recurring.clear();

@@ -33,10 +33,12 @@ export function useLockSettings() {
 }
 
 export function useLockMutations() {
+  /** @param {number} lockedUntil */
   const setLockouts = async (lockedUntil) => {
     return typedDb.settings.put({ id: "lock.lockedUntil", value: lockedUntil });
   };
 
+  /** @param {Record<string, any>} settingsObject */
   const updateLockSettings = async (settingsObject) => {
     return typedDb.transaction("rw", typedDb.settings, async () => {
       for (const [key, value] of Object.entries(settingsObject)) {

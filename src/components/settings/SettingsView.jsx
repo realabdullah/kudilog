@@ -514,7 +514,7 @@ function ImportPreviewModal({
 
 // ─── Budget input ──────────────────────────────────────────────────────────────
 
-/** @param {{ currentBudget?: number | null, currency: string, onSave: (value: number | null) => Promise<void> }} props */
+/** @param {{ currentBudget?: number | null, currency: string, onSave: (value: number | null) => Promise<void>, label?: string }} props */
 function BudgetInput({ currentBudget, currency, onSave, label = "Set limit" }) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState("");
@@ -730,6 +730,7 @@ function CategoriesManager() {
   );
 }
 
+/** @param {{ currency: string, budgets: Record<string, number>, onSetBudget: (id: string, val: number) => Promise<any>, onClearBudget: (id: string) => Promise<any> }} props */
 function CategoryBudgetsEditor({
   currency,
   budgets,
@@ -1109,8 +1110,8 @@ export default function SettingsView() {
   const [clearingRecurring, setClearingRecurring] = useState(false);
 
   // ── Sub-screen navigation ──────────────────────────────────────────────────
-  /** @type {[null | "category-budgets" | "recurring" | "privacy" | "categories", import("react").Dispatch<import("react").SetStateAction<null | "category-budgets" | "recurring" | "privacy" | "categories">>]} */
-  const [subscreen, setSubscreen] = useState(/** @type {null | "category-budgets" | "recurring" | "privacy" | "categories"} */ (null));
+  /** @type {[null | "category-budgets" | "recurring" | "privacy" | "categories" | "app-lock", import("react").Dispatch<import("react").SetStateAction<null | "category-budgets" | "recurring" | "privacy" | "categories" | "app-lock">>]} */
+  const [subscreen, setSubscreen] = useState(/** @type {null | "category-budgets" | "recurring" | "privacy" | "categories" | "app-lock"} */ (null));
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
@@ -1403,7 +1404,7 @@ export default function SettingsView() {
               <div className="border-t border-[#1a1a1a] p-3 bg-[#0d0d0d] rounded-b-2xl">
                 <Select
                   placeholder="More options…"
-                  value={CURRENCIES.slice(0, 4).some(c => c.value === settings.currency) ? "" : settings.currency}
+                  value={CURRENCIES.slice(0, 4).some(c => c.value === settings.currency) ? "" : (settings.currency ?? "")}
                   onChange={handleCurrencyChange}
                   options={CURRENCIES}
                   className="w-full"
