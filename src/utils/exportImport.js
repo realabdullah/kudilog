@@ -36,7 +36,8 @@ const typedDb = /** @type {any} */ (db);
 
 /** @typedef {{ id: string, value: any }} ExportSetting */
 /** @typedef {{ id: string, name: string, amount: number, category: string, frequency: "monthly", startMonth: string, enabled: boolean, lastGeneratedMonth: string | null, createdAt: string, updatedAt: string }} ExportRecurring */
-/** @typedef {{ meta: { appName: string, schemaVersion: number, exportedAt: string, recordCount: { expenses: number, settings: number, recurring: number } }, data: { expenses: ExportExpense[], settings: ExportSetting[], recurring: ExportRecurring[] } }} ExportPayload */
+/** @typedef {{ id: string, month: string, amount: number }} ExportBudget */
+/** @typedef {{ meta: { appName: string, schemaVersion: number, exportedAt: string, recordCount: { expenses: number, settings: number, recurring: number, budgets: number } }, data: { expenses: ExportExpense[], settings: ExportSetting[], recurring: ExportRecurring[], budgets: ExportBudget[] } }} ExportPayload */
 /** @typedef {{ format: string, meta: Object | null, expenseCount: number, settingCount: number, valid: boolean, error: string | null, skippedCount: number, sampleRows: Array<{ name: string, amount: number, category?: string, month?: string, createdAt?: string }>, warnings: string[] }} ImportPreviewResult */
 
 /** @param {unknown} error */
@@ -314,11 +315,14 @@ function detectImportFormat(file, text) {
  * @returns {Promise<ExportPayload>} The full export payload
  */
 export async function buildExportPayload() {
-  const [expenses, settings, recurring] = await Promise.all([
+  const [expenses, allSettings, recurring, budgets] = await Promise.all([
     typedDb.expenses.orderBy("createdAt").toArray(),
     typedDb.settings.toArray(),
     typedDb.recurring ? typedDb.recurring.orderBy("createdAt").toArray() : [],
+    typedDb.budgets ? typedDb.budgets.toArray() : [],
   ]);
+
+  const settings = allSettings.filter((/** @type {ExportSetting} */ s) => !s.id.startsWith("lock."));
 
   return {
     meta: {
@@ -329,12 +333,14 @@ export async function buildExportPayload() {
         expenses: expenses.length,
         settings: settings.length,
         recurring: recurring.length,
+        budgets: budgets.length,
       },
     },
     data: {
       expenses,
       settings,
       recurring,
+      budgets,
     },
   };
 }
@@ -403,7 +409,7 @@ export async function exportToCSV() {
  * Throws a descriptive Error if anything is wrong.
  *
  * @param {unknown} payload
- * @returns {{ expenses: ExportExpense[], settings: ExportSetting[], recurring: ExportRecurring[], meta: Object }}
+ * @returns {{ expenses: ExportExpense[], settings: ExportSetting[], recurring: ExportRecurring[], budgets: ExportBudget[], meta: Object }}
  */
 function validatePayload(payload) {
   if (!payload || typeof payload !== "object") {
@@ -470,10 +476,13 @@ function validatePayload(payload) {
     meta: filePayload.meta,
     expenses: filePayload.data.expenses,
     settings: Array.isArray(filePayload.data.settings)
-      ? filePayload.data.settings
+      ? filePayload.data.settings.filter((/** @type {ExportSetting} */ s) => !s.id.startsWith("lock."))
       : [],
     recurring: Array.isArray(filePayload.data.recurring)
       ? filePayload.data.recurring
+      : [],
+    budgets: Array.isArray(filePayload.data.budgets)
+      ? filePayload.data.budgets
       : [],
   };
 }
@@ -536,21 +545,30 @@ export async function importFromJSON(file, mode = "merge") {
   }
 
   const raw = await readFileAsJSON(file);
-  const { meta, expenses, settings, recurring } = validatePayload(raw);
+  const { meta, expenses, settings, recurring, budgets } = validatePayload(raw);
+
+  const tablesToLock = [typedDb.expenses, typedDb.settings];
+  if (typedDb.recurring) tablesToLock.push(typedDb.recurring);
+  if (typedDb.budgets) tablesToLock.push(typedDb.budgets);
 
   await typedDb.transaction(
     "rw",
-    typedDb.expenses,
-    typedDb.settings,
-    typedDb.recurring,
+    tablesToLock,
     async () => {
       if (mode === "replace") {
         await typedDb.expenses.clear();
-        await typedDb.settings.clear();
-        await typedDb.recurring.clear();
+        
+        // delete all non-lock settings
+        const existingSettings = await typedDb.settings.toArray();
+        const nonLockSettingIds = existingSettings
+          .filter((/** @type {ExportSetting} */ s) => !s.id.startsWith("lock."))
+          .map((/** @type {ExportSetting} */ s) => s.id);
+        await typedDb.settings.bulkDelete(nonLockSettingIds);
+
+        if (typedDb.recurring) await typedDb.recurring.clear();
+        if (typedDb.budgets) await typedDb.budgets.clear();
       }
 
-      // bulkPut uses the primary key (id) so duplicate IDs are overwritten
       if (expenses.length > 0) {
         await typedDb.expenses.bulkPut(expenses);
       }
@@ -559,8 +577,12 @@ export async function importFromJSON(file, mode = "merge") {
         await typedDb.settings.bulkPut(settings);
       }
 
-      if (recurring.length > 0) {
+      if (recurring && recurring.length > 0 && typedDb.recurring) {
         await typedDb.recurring.bulkPut(recurring);
+      }
+
+      if (budgets && budgets.length > 0 && typedDb.budgets) {
+        await typedDb.budgets.bulkPut(budgets);
       }
     },
   );
